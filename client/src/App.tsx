@@ -349,6 +349,8 @@ const App = () => {
     }
   }, [bearerToken]);
 
+  
+
   useEffect(() => {
     if (headerName) {
       localStorage.setItem("lastHeaderName", headerName);
@@ -804,6 +806,22 @@ const App = () => {
   const handleClearNotifications = () => {
     setNotifications([]);
   };
+
+  // Auto-list tools, resources, and prompts when connection is established
+  useEffect(() => {
+    if (connectionStatus === "connected") {
+      if (serverCapabilities?.tools) {
+        void listTools();
+      }
+      if (serverCapabilities?.resources) {
+        void listResources();
+      }
+      if (serverCapabilities?.prompts) {
+        void listPrompts();
+      }
+    }
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [connectionStatus, serverCapabilities]);
 
   const sendLogLevelRequest = async (level: LoggingLevel) => {
     await sendMCPRequest(
