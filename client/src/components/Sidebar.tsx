@@ -108,6 +108,8 @@ const Sidebar = ({
   const [shownEnvVars, setShownEnvVars] = useState<Set<string>>(new Set());
   const [copiedServerEntry, setCopiedServerEntry] = useState(false);
   const [copiedServerFile, setCopiedServerFile] = useState(false);
+  const [loadedServers, setLoadedServers] = useState<Record<string, any>>({});
+  const [selectedServer, setSelectedServer] = useState<string>("");
   const { toast } = useToast();
 
   // Reusable error reporter for copy actions
@@ -122,55 +124,143 @@ const Sidebar = ({
     [toast],
   );
 
+  // Apply server configuration to the form
+  const applyServerConfig = useCallback((serverConfig: any) => {
+    console.log("Applying server configuration:", serverConfig);
+    console.log("Server config keys:", Object.keys(serverConfig));
+    
+    if (serverConfig.command) {
+      console.log("Detected STDIO server with command:", serverConfig.command);
+      setTransportType("stdio");
+      setCommand(serverConfig.command);
+      setArgs(serverConfig.args ? serverConfig.args.join(' ') : '');
+      if (serverConfig.env) {
+        console.log("Setting environment variables:", serverConfig.env);
+        setEnv(serverConfig.env);
+      }
+    } else if (serverConfig.type === "sse" || serverConfig.url) {
+      console.log("Detected SSE server with URL:", serverConfig.url || serverConfig.sseUrl);
+      setTransportType("sse");
+      setSseUrl(serverConfig.url || serverConfig.sseUrl || '');
+    } else if (serverConfig.type === "streamable-http") {
+      console.log("Detected Streamable HTTP server with URL:", serverConfig.url);
+      setTransportType("streamable-http");
+      setSseUrl(serverConfig.url || '');
+    } else {
+      console.warn("Unknown server configuration type:", serverConfig);
+      console.warn("Server config does not match expected patterns");
+    }
+  }, [setTransportType, setCommand, setArgs, setEnv, setSseUrl]);
+
   // Load configuration from file
   const loadConfigFromFile = useCallback(
     async (file: File) => {
       try {
-        const text = await file.text();
-        const configData = JSON.parse(text);
+        console.log("Starting to load configuration file:", file.name, "Size:", file.size, "bytes");
         
-        // Validate and extract MCP server configuration
+        const text = await file.text();
+        console.log("File content loaded, length:", text.length);
+        console.log("File content preview:", text.substring(0, 200) + (text.length > 200 ? "..." : ""));
+        
+        let configData;
+        try {
+          configData = JSON.parse(text);
+          console.log("JSON parsed successfully");
+        } catch (parseError) {
+          console.error("JSON parse error:", parseError);
+          const errorMessage = parseError instanceof Error ? parseError.message : String(parseError);
+          throw new Error(`Invalid JSON format: ${errorMessage}`);
+        }
+        
+        console.log("Parsed configuration data:", configData);
+        console.log("Configuration keys:", Object.keys(configData));
+        
+        // Check for different possible formats
         if (configData.servers && typeof configData.servers === 'object') {
-          // Find the first server configuration
-          const serverName = Object.keys(configData.servers)[0];
-          const serverConfig = configData.servers[serverName];
+          console.log("Found 'servers' key with", Object.keys(configData.servers).length, "servers");
+          console.log("Server names:", Object.keys(configData.servers));
           
-          if (serverConfig) {
-            // Update transport type and configuration based on server config
-            if (serverConfig.command) {
-              setTransportType("stdio");
-              setCommand(serverConfig.command);
-              setArgs(serverConfig.args ? serverConfig.args.join(' ') : '');
-              if (serverConfig.env) {
-                setEnv(serverConfig.env);
-              }
-            } else if (serverConfig.type === "sse" || serverConfig.url) {
-              setTransportType("sse");
-              setSseUrl(serverConfig.url || serverConfig.sseUrl || '');
-            } else if (serverConfig.type === "streamable-http") {
-              setTransportType("streamable-http");
-              setSseUrl(serverConfig.url || '');
-            }
-            
-            // Save to localStorage
-            localStorage.setItem("lastConfigFilePath", file.name);
-            
-            toast({
-              title: "Configuration loaded",
-              description: `Successfully loaded configuration from ${file.name}`,
-            });
-          } else {
-            throw new Error("No server configuration found in file");
+          // Store all servers for selection
+          setLoadedServers(configData.servers);
+          
+          // Select the first server by default
+          const serverNames = Object.keys(configData.servers);
+          if (serverNames.length > 0) {
+            console.log("Selecting first server:", serverNames[0]);
+            setSelectedServer(serverNames[0]);
+            applyServerConfig(configData.servers[serverNames[0]]);
           }
+          
+          // Save to localStorage
+          localStorage.setItem("lastConfigFilePath", file.name);
+          
+          toast({
+            title: "Configuration loaded",
+            description: `Successfully loaded ${serverNames.length} server(s) from ${file.name}`,
+          });
+        } else if (configData.mcpServers && typeof configData.mcpServers === 'object') {
+          console.log("Found 'mcpServers' key with", Object.keys(configData.mcpServers).length, "servers");
+          console.log("Server names:", Object.keys(configData.mcpServers));
+          
+          // Handle mcpServers format (alternative format)
+          setLoadedServers(configData.mcpServers);
+          
+          const serverNames = Object.keys(configData.mcpServers);
+          if (serverNames.length > 0) {
+            console.log("Selecting first server:", serverNames[0]);
+            setSelectedServer(serverNames[0]);
+            applyServerConfig(configData.mcpServers[serverNames[0]]);
+          }
+          
+          localStorage.setItem("lastConfigFilePath", file.name);
+          
+          toast({
+            title: "Configuration loaded",
+            description: `Successfully loaded ${serverNames.length} server(s) from ${file.name} (mcpServers format)`,
+          });
         } else {
-          throw new Error("Invalid MCP configuration file format");
+          console.error("No valid server configuration found");
+          console.error("Available keys:", Object.keys(configData));
+          console.error("Expected 'servers' or 'mcpServers' key");
+          
+          const availableKeys = Object.keys(configData);
+          const expectedFormats = [
+            "Expected format: { 'servers': { 'serverName': { 'command': '...', 'args': [...] } } }",
+            "Alternative format: { 'mcpServers': { 'serverName': { 'command': '...', 'args': [...] } } }"
+          ];
+          
+          throw new Error(`Invalid MCP configuration file format. Found keys: [${availableKeys.join(', ')}]. ${expectedFormats.join(' ')}`);
         }
       } catch (error) {
+        console.error("Error loading configuration file:", error);
+        const errorDetails = error instanceof Error ? {
+          name: error.name,
+          message: error.message,
+          stack: error.stack
+        } : {
+          name: "Unknown",
+          message: String(error),
+          stack: undefined
+        };
+        console.error("Error details:", errorDetails);
         reportError(error);
       }
     },
-    [setTransportType, setCommand, setArgs, setEnv, setSseUrl, toast, reportError],
+    [toast, reportError, applyServerConfig],
   );
+
+  // Handle server selection change
+  const handleServerSelection = useCallback((serverName: string) => {
+    console.log("Server selection changed to:", serverName);
+    console.log("Available servers:", Object.keys(loadedServers));
+    setSelectedServer(serverName);
+    if (loadedServers[serverName]) {
+      console.log("Applying configuration for selected server:", serverName);
+      applyServerConfig(loadedServers[serverName]);
+    } else {
+      console.error("Selected server not found in loaded servers:", serverName);
+    }
+  }, [loadedServers, applyServerConfig]);
 
 
   // Shared utility function to generate server config
@@ -322,6 +412,36 @@ const Sidebar = ({
                 Load MCP configuration from a JSON file
               </p>
             </div>
+
+            {/* Server Selection Dropdown */}
+            {Object.keys(loadedServers).length > 0 && (
+              <div className="space-y-2">
+                <label
+                  className="text-sm font-medium"
+                  htmlFor="server-select"
+                >
+                  Select MCP Server
+                </label>
+                <Select
+                  value={selectedServer}
+                  onValueChange={handleServerSelection}
+                >
+                  <SelectTrigger id="server-select">
+                    <SelectValue placeholder="Select a server" />
+                  </SelectTrigger>
+                  <SelectContent>
+                    {Object.keys(loadedServers).map((serverName) => (
+                      <SelectItem key={serverName} value={serverName}>
+                        {serverName}
+                      </SelectItem>
+                    ))}
+                  </SelectContent>
+                </Select>
+                <p className="text-xs text-muted-foreground">
+                  Choose which server configuration to use
+                </p>
+              </div>
+            )}
           </TabsContent>
           
           <TabsContent value="manual" className="space-y-4 mt-4">
