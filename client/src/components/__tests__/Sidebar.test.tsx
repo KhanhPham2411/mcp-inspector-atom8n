@@ -40,6 +40,8 @@ describe("Sidebar", () => {
     setCommand: jest.fn(),
     args: "",
     setArgs: jest.fn(),
+    configFilePath: "",
+    setConfigFilePath: jest.fn(),
     sseUrl: "",
     setSseUrl: jest.fn(),
     oauthClientId: "",

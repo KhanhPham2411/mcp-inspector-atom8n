@@ -24,6 +24,7 @@ import {
   SelectTrigger,
   SelectValue,
 } from "@/components/ui/select";
+import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import {
   LoggingLevel,
   LoggingLevelSchema,
@@ -49,6 +50,8 @@ interface SidebarProps {
   setCommand: (command: string) => void;
   args: string;
   setArgs: (args: string) => void;
+  configFilePath: string;
+  setConfigFilePath: (path: string) => void;
   sseUrl: string;
   setSseUrl: (url: string) => void;
   env: Record<string, string>;
@@ -77,6 +80,8 @@ const Sidebar = ({
   setCommand,
   args,
   setArgs,
+  configFilePath: _configFilePath,
+  setConfigFilePath,
   sseUrl,
   setSseUrl,
   env,
@@ -96,6 +101,7 @@ const Sidebar = ({
   setConfig,
 }: SidebarProps) => {
   const [theme, setTheme] = useTheme();
+  const [activeTab, setActiveTab] = useState<"file" | "manual">("file");
   const [showEnvVars, setShowEnvVars] = useState(false);
   const [showAuthConfig, setShowAuthConfig] = useState(false);
   const [showConfig, setShowConfig] = useState(false);
@@ -115,6 +121,57 @@ const Sidebar = ({
     },
     [toast],
   );
+
+  // Load configuration from file
+  const loadConfigFromFile = useCallback(
+    async (file: File) => {
+      try {
+        const text = await file.text();
+        const configData = JSON.parse(text);
+        
+        // Validate and extract MCP server configuration
+        if (configData.servers && typeof configData.servers === 'object') {
+          // Find the first server configuration
+          const serverName = Object.keys(configData.servers)[0];
+          const serverConfig = configData.servers[serverName];
+          
+          if (serverConfig) {
+            // Update transport type and configuration based on server config
+            if (serverConfig.command) {
+              setTransportType("stdio");
+              setCommand(serverConfig.command);
+              setArgs(serverConfig.args ? serverConfig.args.join(' ') : '');
+              if (serverConfig.env) {
+                setEnv(serverConfig.env);
+              }
+            } else if (serverConfig.type === "sse" || serverConfig.url) {
+              setTransportType("sse");
+              setSseUrl(serverConfig.url || serverConfig.sseUrl || '');
+            } else if (serverConfig.type === "streamable-http") {
+              setTransportType("streamable-http");
+              setSseUrl(serverConfig.url || '');
+            }
+            
+            // Save to localStorage
+            localStorage.setItem("lastConfigFilePath", file.name);
+            
+            toast({
+              title: "Configuration loaded",
+              description: `Successfully loaded configuration from ${file.name}`,
+            });
+          } else {
+            throw new Error("No server configuration found in file");
+          }
+        } else {
+          throw new Error("Invalid MCP configuration file format");
+        }
+      } catch (error) {
+        reportError(error);
+      }
+    },
+    [setTransportType, setCommand, setArgs, setEnv, setSseUrl, toast, reportError],
+  );
+
 
   // Shared utility function to generate server config
   const generateServerConfig = useCallback(() => {
@@ -228,7 +285,46 @@ const Sidebar = ({
       </div>
 
       <div className="p-4 flex-1 overflow-auto">
-        <div className="space-y-4">
+        <Tabs value={activeTab} onValueChange={(value) => setActiveTab(value as "file" | "manual")} className="w-full">
+          <TabsList className="grid w-full grid-cols-2">
+            <TabsTrigger value="file">MCP File</TabsTrigger>
+            <TabsTrigger value="manual">Manual</TabsTrigger>
+          </TabsList>
+          
+          <TabsContent value="file" className="space-y-4 mt-4">
+            {/* Configuration File Input */}
+            <div className="space-y-2">
+              <label
+                className="text-sm font-medium"
+                htmlFor="config-file-input"
+              >
+                Load Configuration from File
+              </label>
+              <div className="space-y-2">
+                <Input
+                  id="config-file-input"
+                  type="file"
+                  accept=".json"
+                  onChange={(e) => {
+                    const file = e.target.files?.[0];
+                    if (file) {
+                      setConfigFilePath(file.name);
+                      loadConfigFromFile(file);
+                    }
+                  }}
+                  className="font-mono"
+                />
+                <div className="text-xs text-muted-foreground bg-muted p-2 rounded">
+                  <strong>Default path:</strong> C:\Users\%USERPROFILE%\.cursor\mcp.json
+                </div>
+              </div>
+              <p className="text-xs text-muted-foreground">
+                Load MCP configuration from a JSON file
+              </p>
+            </div>
+          </TabsContent>
+          
+          <TabsContent value="manual" className="space-y-4 mt-4">
           <div className="space-y-2">
             <label
               className="text-sm font-medium"
@@ -732,7 +828,8 @@ const Sidebar = ({
               </div>
             )}
           </div>
-        </div>
+          </TabsContent>
+        </Tabs>
       </div>
       <div className="p-4 border-t">
         <div className="flex items-center justify-between">
