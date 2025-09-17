@@ -516,6 +516,14 @@ const Sidebar = ({
                 <p className="text-xs text-muted-foreground">
                   Choose which server configuration to use
                 </p>
+                <Button 
+                  className="w-full" 
+                  onClick={onConnect}
+                  disabled={!selectedServer}
+                >
+                  <Play className="w-4 h-4 mr-2" />
+                  Connect to {selectedServer}
+                </Button>
               </div>
             )}
           </TabsContent>
