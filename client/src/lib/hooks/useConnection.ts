@@ -347,6 +347,8 @@ export function useConnection({
   };
 
   const connect = async (_e?: unknown, retryCount: number = 0) => {
+    setConnectionStatus("connecting");
+    
     const client = new Client<Request, Notification, Result>(
       {
         name: "mcp-inspector",

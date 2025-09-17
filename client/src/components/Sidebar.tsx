@@ -14,6 +14,7 @@ import {
   RefreshCwOff,
   Copy,
   CheckCheck,
+  Loader2,
 } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
@@ -516,14 +517,31 @@ const Sidebar = ({
                 <p className="text-xs text-muted-foreground">
                   Choose which server configuration to use
                 </p>
-                <Button 
-                  className="w-full" 
-                  onClick={onConnect}
-                  disabled={!selectedServer}
-                >
-                  <Play className="w-4 h-4 mr-2" />
-                  Connect to {selectedServer}
-                </Button>
+                <div className="flex gap-2">
+                  {connectionStatus === "connected" ? (
+                    <Button 
+                      variant="outline"
+                      className="w-full" 
+                      onClick={onDisconnect}
+                    >
+                      <RotateCcw className="w-4 h-4 mr-2" />
+                      Disconnect
+                    </Button>
+                  ) : (
+                    <Button 
+                      className="w-full" 
+                      onClick={onConnect}
+                      disabled={!selectedServer || connectionStatus === "connecting"}
+                    >
+                      {connectionStatus === "connecting" ? (
+                        <Loader2 className="w-4 h-4 mr-2 animate-spin" />
+                      ) : (
+                        <Play className="w-4 h-4 mr-2" />
+                      )}
+                      {connectionStatus === "connecting" ? "Connecting..." : "Connect"}
+                    </Button>
+                  )}
+                </div>
               </div>
             )}
           </TabsContent>
@@ -974,6 +992,8 @@ const Sidebar = ({
                   switch (connectionStatus) {
                     case "connected":
                       return "bg-green-500";
+                    case "connecting":
+                      return "bg-yellow-500";
                     case "error":
                       return "bg-red-500";
                     case "error-connecting-to-proxy":
@@ -988,6 +1008,8 @@ const Sidebar = ({
                   switch (connectionStatus) {
                     case "connected":
                       return "Connected";
+                    case "connecting":
+                      return "Connecting...";
                     case "error": {
                       const hasProxyToken = config.MCP_PROXY_AUTH_TOKEN?.value;
                       if (!hasProxyToken) {
