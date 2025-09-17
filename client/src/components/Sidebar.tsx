@@ -1,4 +1,4 @@
-import { useState, useCallback } from "react";
+import { useState, useCallback, useEffect } from "react";
 import {
   Play,
   ChevronDown,
@@ -30,6 +30,7 @@ import {
   LoggingLevelSchema,
 } from "@modelcontextprotocol/sdk/types.js";
 import { InspectorConfig } from "@/lib/configurationTypes";
+import { getMCPProxyAddress, getMCPProxyAuthToken } from "@/utils/configUtils";
 import { ConnectionStatus } from "@/lib/constants";
 import useTheme from "../lib/hooks/useTheme";
 import { version } from "../../../package.json";
@@ -110,6 +111,7 @@ const Sidebar = ({
   const [copiedServerFile, setCopiedServerFile] = useState(false);
   const [loadedServers, setLoadedServers] = useState<Record<string, any>>({});
   const [selectedServer, setSelectedServer] = useState<string>("");
+  const [isLoadingDefault, setIsLoadingDefault] = useState<boolean>(false);
   const { toast } = useToast();
 
   // Reusable error reporter for copy actions
@@ -262,6 +264,63 @@ const Sidebar = ({
     }
   }, [loadedServers, applyServerConfig]);
 
+  // Attempt to load default configuration file via server endpoint
+  const loadDefaultConfig = useCallback(async () => {
+    setIsLoadingDefault(true);
+    try {
+      console.log("Attempting to load default configuration from server /mcp-config");
+
+      const baseUrl = getMCPProxyAddress(config);
+      const { token, header } = getMCPProxyAuthToken(config);
+      const url = `${baseUrl}/mcp-config`;
+
+      const resp = await fetch(url, {
+        method: "GET",
+        headers: {
+          "Content-Type": "application/json",
+          [header]: token ? `Bearer ${token}` : "",
+        },
+      });
+
+      if (!resp.ok) {
+        const err = await resp.json().catch(() => ({}));
+        console.error("Failed to load default MCP config:", err);
+        return; // silent fail; user can still pick a file manually
+      }
+
+      const data = await resp.json();
+      console.log("Default MCP config loaded:", data);
+
+      const configData = data.config as any;
+      const servers = (configData.servers || configData.mcpServers) as Record<string, any> | undefined;
+      if (!servers) return;
+
+      setLoadedServers(servers);
+      const names = Object.keys(servers);
+      if (names.length > 0) {
+        setSelectedServer(names[0]);
+        applyServerConfig(servers[names[0]]);
+      }
+      if (typeof data.path === "string" && data.path) {
+        setConfigFilePath(data.path);
+      }
+      
+    } catch (error) {
+      console.error("Error loading default config:", error);
+      // Do not toast; we want this to be silent and non-blocking
+    } finally {
+      setIsLoadingDefault(false);
+    }
+  }, [config, applyServerConfig, setConfigFilePath]);
+
+  // Auto-load default configuration on component mount
+  useEffect(() => {
+    // Only attempt to load if we haven't loaded any servers yet
+    if (Object.keys(loadedServers).length === 0) {
+      loadDefaultConfig();
+    }
+  }, [loadDefaultConfig, loadedServers]);
+
 
   // Shared utility function to generate server config
   const generateServerConfig = useCallback(() => {
@@ -403,13 +462,30 @@ const Sidebar = ({
                     }
                   }}
                   className="font-mono"
+                  disabled={isLoadingDefault}
                 />
                 <div className="text-xs text-muted-foreground bg-muted p-2 rounded">
                   <strong>Default path:</strong> C:\Users\%USERPROFILE%\.cursor\mcp.json
+                  {isLoadingDefault && (
+                    <div className="mt-1 text-blue-600">
+                      <strong>Auto-loading...</strong> Please select your mcp.json file
+                    </div>
+                  )}
                 </div>
               </div>
+              <div className="flex gap-2">
+                <Button
+                  variant="outline"
+                  size="sm"
+                  onClick={loadDefaultConfig}
+                  disabled={isLoadingDefault}
+                  className="flex-1"
+                >
+                  {isLoadingDefault ? "Loading..." : "Load Default Config"}
+                </Button>
+              </div>
               <p className="text-xs text-muted-foreground">
-                Load MCP configuration from a JSON file
+                Load MCP configuration from a JSON file. The app will attempt to load from the default Cursor path.
               </p>
             </div>
 

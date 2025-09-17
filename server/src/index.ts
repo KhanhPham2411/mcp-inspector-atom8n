@@ -17,6 +17,9 @@ import { StreamableHTTPServerTransport } from "@modelcontextprotocol/sdk/server/
 import { SSEServerTransport } from "@modelcontextprotocol/sdk/server/sse.js";
 import { Transport } from "@modelcontextprotocol/sdk/shared/transport.js";
 import express from "express";
+import path from "node:path";
+import os from "node:os";
+import { promises as fs } from "node:fs";
 import { findActualExecutable } from "spawn-rx";
 import mcpProxy from "./mcpProxy.js";
 import { randomUUID, randomBytes, timingSafeEqual } from "node:crypto";
@@ -674,6 +677,78 @@ app.get("/health", (req, res) => {
     status: "ok",
   });
 });
+
+// Returns the default Cursor MCP configuration from the user's home directory
+// Default path: <home>/.cursor/mcp.json (cross-platform)
+app.get(
+  "/mcp-config",
+  originValidationMiddleware,
+  authMiddleware,
+  async (req, res) => {
+    try {
+      // Allow overriding the path via query param for flexibility/testing
+      const overridePath = (req.query.path as string) || "";
+      const homeDir = os.homedir();
+      const defaultPath = path.join(homeDir, ".cursor", "mcp.json");
+      const targetPath = overridePath || defaultPath;
+
+      try {
+        const fileContent = await fs.readFile(targetPath, "utf8");
+        let parsed: unknown;
+        try {
+          parsed = JSON.parse(fileContent);
+        } catch (e) {
+          res.status(400).json({
+            error: "Bad Request",
+            message: `Invalid JSON in MCP configuration file at ${targetPath}`,
+          });
+          return;
+        }
+
+        const obj = parsed as Record<string, unknown>;
+        const servers = (obj["servers"] || obj["mcpServers"]) as
+          | Record<string, unknown>
+          | undefined;
+
+        const serverCount = servers ? Object.keys(servers).length : 0;
+
+        if (!servers || serverCount === 0) {
+          res.status(400).json({
+            error: "Bad Request",
+            message:
+              "No valid servers found in the MCP configuration file. Expected 'servers' or 'mcpServers' with at least one entry.",
+          });
+          return;
+        }
+
+        res.json({
+          path: targetPath,
+          config: obj,
+          serverCount,
+        });
+      } catch (readErr: any) {
+        if (readErr?.code === "ENOENT") {
+          res.status(404).json({
+            error: "Not Found",
+            message: `MCP configuration file not found at ${targetPath}`,
+          });
+          return;
+        }
+        console.error("Error reading MCP config:", readErr);
+        res.status(500).json({
+          error: "Internal Server Error",
+          message: readErr?.message || String(readErr),
+        });
+      }
+    } catch (error: any) {
+      console.error("Unhandled error in /mcp-config route:", error);
+      res.status(500).json({
+        error: "Internal Server Error",
+        message: error?.message || String(error),
+      });
+    }
+  },
+);
 
 app.get("/config", originValidationMiddleware, authMiddleware, (req, res) => {
   try {
