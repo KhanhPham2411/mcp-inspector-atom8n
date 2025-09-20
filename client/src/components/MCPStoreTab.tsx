@@ -23,6 +23,7 @@ import {
 import { useToast } from "../lib/hooks/useToast";
 import { InspectorConfig } from "@/lib/configurationTypes";
 import { getMCPProxyAddress, getMCPProxyAuthToken } from "@/utils/configUtils";
+import { logInfo } from "@/utils/logUtils";
 
 interface MCPSource {
   name: string;
@@ -41,17 +42,26 @@ interface MCPServer {
   version?: string;
   author?: string;
   license?: string;
+  source?: string;
 }
 
 interface MCPSourceResponse {
   mcpServers: Record<string, MCPServer>;
 }
 
+interface ServerConfig {
+  command: string;
+  args: string[];
+  env?: Record<string, string>;
+  disabled?: boolean;
+  autoApprove?: string[];
+}
+
 interface MCPStoreTabProps {
   config: InspectorConfig;
-  currentServers?: Record<string, any>;
-  onServersChange?: (servers: Record<string, any>) => void;
-  onTestConnection?: (serverConfig: any) => void;
+  currentServers?: Record<string, ServerConfig>;
+  onServersChange?: (servers: Record<string, ServerConfig>) => void;
+  onTestConnection?: (serverConfig: ServerConfig) => void;
 }
 
 const MCPStoreTab = ({ config, currentServers = {}, onServersChange, onTestConnection }: MCPStoreTabProps) => {
@@ -85,7 +95,7 @@ const MCPStoreTab = ({ config, currentServers = {}, onServersChange, onTestConne
   // Save sources to localStorage whenever sources change
   useEffect(() => {
     localStorage.setItem("mcpStoreSources", JSON.stringify(sources));
-  }, [sources]);
+  }, [sources, config]);
 
   // Fetch MCP servers from all enabled sources
   const fetchMCPServers = useCallback(async () => {
@@ -135,7 +145,7 @@ const MCPStoreTab = ({ config, currentServers = {}, onServersChange, onTestConne
     } finally {
       setIsLoading(false);
     }
-  }, [sources, toast]);
+  }, [sources, toast, config]);
 
   // Load servers on component mount and when sources change
   useEffect(() => {
@@ -181,7 +191,7 @@ const MCPStoreTab = ({ config, currentServers = {}, onServersChange, onTestConne
 
   // Check if a server is already installed
   const isServerInstalled = (server: MCPServer): boolean => {
-    return Object.values(currentServers).some((existingServer: any) => {
+    return Object.values(currentServers).some((existingServer: ServerConfig) => {
       // Check if command and args match
       if (existingServer.command === server.command) {
         const existingArgs = Array.isArray(existingServer.args) ? existingServer.args : [];
@@ -252,7 +262,7 @@ const MCPStoreTab = ({ config, currentServers = {}, onServersChange, onTestConne
     }
   };
 
-  const handleTestConnection = (server: MCPServer) => {
+  const handleTestConnection = async (server: MCPServer) => {
     const serverConfig = {
       command: server.command,
       args: server.args,
@@ -260,6 +270,14 @@ const MCPStoreTab = ({ config, currentServers = {}, onServersChange, onTestConne
       disabled: server.disabled,
       autoApprove: server.autoApprove
     };
+
+    // Log the test connection attempt to the server logs
+    await logInfo(config, `Testing connection to MCP server: ${server.name} (${server.command})`, {
+      serverName: server.name,
+      command: server.command,
+      args: server.args,
+      source: 'MCPStoreTab'
+    });
 
     if (onTestConnection) {
       onTestConnection(serverConfig);
@@ -424,7 +442,7 @@ const MCPStoreTab = ({ config, currentServers = {}, onServersChange, onTestConne
                   <CardTitle className="text-lg">{server.name}</CardTitle>
                 </div>
                 <Badge variant="secondary" className="text-xs">
-                  {(server as any).source || "Unknown"}
+                  {server.source || "Unknown"}
                 </Badge>
               </div>
               {server.description && (

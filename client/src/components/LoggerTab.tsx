@@ -20,36 +20,17 @@ import {
   Loader2
 } from "lucide-react";
 import { useToast } from "../lib/hooks/useToast";
-import { getMCPProxyAddress, getMCPProxyAuthToken } from "@/utils/configUtils";
 import { InspectorConfig } from "@/lib/configurationTypes";
+import { createServerLogUtils, LogFile, LogContent } from "@/utils/logUtils";
 
-interface LogFile {
-  name: string;
-  size?: number;
-  lastModified?: string;
-}
-
-interface LogContent {
-  content: string;
-  pagination: {
-    page: number;
-    limit: number;
-    totalLines: number;
-    totalPages: number;
-    hasNext: boolean;
-    hasPrev: boolean;
-  };
-  logFile: string;
-}
-
-interface LogLevel {
+interface LogLevelDisplay {
   level: 'info' | 'warn' | 'error' | 'debug';
   label: string;
   icon: React.ReactNode;
   color: string;
 }
 
-const LOG_LEVELS: LogLevel[] = [
+const LOG_LEVELS: LogLevelDisplay[] = [
   { level: 'info', label: 'Info', icon: <Info className="w-4 h-4" />, color: 'text-blue-600' },
   { level: 'warn', label: 'Warning', icon: <AlertTriangle className="w-4 h-4" />, color: 'text-yellow-600' },
   { level: 'error', label: 'Error', icon: <AlertCircle className="w-4 h-4" />, color: 'text-red-600' },
@@ -72,21 +53,9 @@ const LoggerTab = ({ config }: { config: InspectorConfig }) => {
   // Fetch available log files
   const fetchLogFiles = useCallback(async () => {
     try {
-      const proxyAddress = getMCPProxyAddress(config);
-      const { token, header } = getMCPProxyAuthToken(config);
+      const logUtils = createServerLogUtils(config);
+      const data = await logUtils.getLogFiles();
       
-      const response = await fetch(`${proxyAddress}/logs`, {
-        headers: {
-          [header]: `Bearer ${token}`,
-          'Content-Type': 'application/json'
-        }
-      });
-
-      if (!response.ok) {
-        throw new Error(`Failed to fetch log files: ${response.statusText}`);
-      }
-
-      const data = await response.json();
       setLogFiles(data.files.map((file: string) => ({ name: file })));
       
       // Auto-select the first file if none selected
@@ -94,14 +63,13 @@ const LoggerTab = ({ config }: { config: InspectorConfig }) => {
         setSelectedFile(data.files[0]);
       }
     } catch (error) {
-      console.error('Error fetching log files:', error);
       toast({
         title: "Error",
         description: `Failed to fetch log files: ${error instanceof Error ? error.message : 'Unknown error'}`,
         variant: "destructive"
       });
     }
-  }, [selectedFile, toast]);
+  }, [selectedFile, toast, config]);
 
   // Fetch log content
   const fetchLogContent = useCallback(async (filename: string, page: number = 1, limit: number = 100) => {
@@ -109,26 +77,14 @@ const LoggerTab = ({ config }: { config: InspectorConfig }) => {
 
     setIsLoading(true);
     try {
-      const proxyAddress = getMCPProxyAddress(config);
-      const { token, header } = getMCPProxyAuthToken(config);
+      const logUtils = createServerLogUtils(config);
+      const data = filename === 'current' 
+        ? await logUtils.getCurrentLogContent(page, limit)
+        : await logUtils.getLogFileContent(filename, page, limit);
       
-      const endpoint = filename === 'current' ? '/logs/current' : `/logs/${filename}`;
-      const response = await fetch(`${proxyAddress}${endpoint}?page=${page}&limit=${limit}`, {
-        headers: {
-          [header]: `Bearer ${token}`,
-          'Content-Type': 'application/json'
-        }
-      });
-
-      if (!response.ok) {
-        throw new Error(`Failed to fetch log content: ${response.statusText}`);
-      }
-
-      const data = await response.json();
       setLogContent(data);
       setCurrentPage(page);
     } catch (error) {
-      console.error('Error fetching log content:', error);
       toast({
         title: "Error",
         description: `Failed to fetch log content: ${error instanceof Error ? error.message : 'Unknown error'}`,
@@ -137,29 +93,16 @@ const LoggerTab = ({ config }: { config: InspectorConfig }) => {
     } finally {
       setIsLoading(false);
     }
-  }, [toast]);
+  }, [toast, config]);
 
   // Write test log
   const writeTestLog = useCallback(async () => {
     try {
-      const proxyAddress = getMCPProxyAddress(config);
-      const { token, header } = getMCPProxyAuthToken(config);
-      
-      const response = await fetch(`${proxyAddress}/logs/test`, {
-        method: 'POST',
-        headers: {
-          [header]: `Bearer ${token}`,
-          'Content-Type': 'application/json'
-        },
-        body: JSON.stringify({
-          level: testLevel,
-          message: testMessage
-        })
+      const logUtils = createServerLogUtils(config);
+      await logUtils.writeLog({
+        level: testLevel,
+        message: testMessage
       });
-
-      if (!response.ok) {
-        throw new Error(`Failed to write test log: ${response.statusText}`);
-      }
 
       toast({
         title: "Success",
@@ -171,32 +114,19 @@ const LoggerTab = ({ config }: { config: InspectorConfig }) => {
         await fetchLogContent(selectedFile, currentPage, pageSize);
       }
     } catch (error) {
-      console.error('Error writing test log:', error);
       toast({
         title: "Error",
         description: `Failed to write test log: ${error instanceof Error ? error.message : 'Unknown error'}`,
         variant: "destructive"
       });
     }
-  }, [testLevel, testMessage, selectedFile, currentPage, pageSize, fetchLogContent, toast]);
+  }, [testLevel, testMessage, selectedFile, currentPage, pageSize, fetchLogContent, toast, config]);
 
   // Clean up old logs
   const cleanupLogs = useCallback(async (daysToKeep: number = 7) => {
     try {
-      const proxyAddress = getMCPProxyAddress(config);
-      const { token, header } = getMCPProxyAuthToken(config);
-      
-      const response = await fetch(`${proxyAddress}/logs/cleanup?days=${daysToKeep}`, {
-        method: 'DELETE',
-        headers: {
-          [header]: `Bearer ${token}`,
-          'Content-Type': 'application/json'
-        }
-      });
-
-      if (!response.ok) {
-        throw new Error(`Failed to cleanup logs: ${response.statusText}`);
-      }
+      const logUtils = createServerLogUtils(config);
+      await logUtils.cleanupLogs(daysToKeep);
 
       toast({
         title: "Success",
@@ -206,14 +136,13 @@ const LoggerTab = ({ config }: { config: InspectorConfig }) => {
       // Refresh log files
       await fetchLogFiles();
     } catch (error) {
-      console.error('Error cleaning up logs:', error);
       toast({
         title: "Error",
         description: `Failed to cleanup logs: ${error instanceof Error ? error.message : 'Unknown error'}`,
         variant: "destructive"
       });
     }
-  }, [fetchLogFiles, toast]);
+  }, [fetchLogFiles, toast, config]);
 
   // Filter log content based on search query
   const filteredContent = logContent?.content
