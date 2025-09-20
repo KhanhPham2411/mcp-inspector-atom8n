@@ -197,22 +197,42 @@ const App = () => {
     setAuthState((prev) => ({ ...prev, ...updates }));
   };
 
-  const handleTestConnection = (serverConfig: any) => {
-    // Set the server configuration for testing
+  const handleTestConnection = async (serverConfig: any) => {
+    // Apply the server configuration for testing
     if (serverConfig.command) {
       setTransportType("stdio");
       setCommand(serverConfig.command);
-      setArgs(serverConfig.args ? serverConfig.args.join(' ') : '');
+      setArgs(serverConfig.args ? serverConfig.args.join(" ") : "");
       if (serverConfig.env) {
         setEnv(serverConfig.env);
       }
+    } else if (serverConfig.type === "sse" || serverConfig.url) {
+      setTransportType("sse");
+      setSseUrl(serverConfig.url || serverConfig.sseUrl || "");
     }
-    
-    // Show a toast notification
+
+    // Navigate to Tools tab for immediate feedback
+    setActiveTab("tools");
+    window.location.hash = "tools";
+
+    // If already connected or connecting, disconnect first
+    try {
+      if (connectionStatus === "connected" || connectionStatus === "connecting") {
+        await disconnectMcpServer();
+      }
+    } catch {
+      // ignore disconnect errors
+    }
+
     toast({
-      title: "Test Connection",
-      description: "Server configuration has been set for testing. Click Connect to test the connection.",
+      title: "Connecting",
+      description: "Attempting to connect to the selected MCP server...",
     });
+
+    // Defer connect slightly to allow state updates to flush
+    setTimeout(() => {
+      void connectMcpServer();
+    }, 10);
   };
   const nextRequestId = useRef(0);
   const rootsRef = useRef<Root[]>([]);
