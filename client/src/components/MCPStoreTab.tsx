@@ -49,9 +49,10 @@ interface MCPSourceResponse {
 interface MCPStoreTabProps {
   config: InspectorConfig;
   currentServers?: Record<string, any>;
+  onServersChange?: (servers: Record<string, any>) => void;
 }
 
-const MCPStoreTab = ({ config, currentServers = {} }: MCPStoreTabProps) => {
+const MCPStoreTab = ({ config, currentServers = {}, onServersChange }: MCPStoreTabProps) => {
   const [sources, setSources] = useState<MCPSource[]>([
     {
       name: "Default MCP Store",
@@ -200,17 +201,50 @@ const MCPStoreTab = ({ config, currentServers = {} }: MCPStoreTabProps) => {
         autoApprove: server.autoApprove
       };
 
-      // Copy to clipboard
-      await navigator.clipboard.writeText(JSON.stringify(serverConfig, null, 2));
+      // Generate a unique server name (use the store name or create one)
+      const serverName = server.name.toLowerCase().replace(/[^a-z0-9-]/g, '-');
+      const finalServerName = Object.keys(currentServers).includes(serverName) 
+        ? `${serverName}-${Date.now()}` 
+        : serverName;
+
+      // Add the new server to current configuration
+      const updatedServers = {
+        ...currentServers,
+        [finalServerName]: serverConfig
+      };
+      
+      // Update the MCP configuration file via API
+      const baseUrl = getMCPProxyAddress(config);
+      const { token, header } = getMCPProxyAuthToken(config);
+      const response = await fetch(`${baseUrl}/update-mcp-config`, {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+          [header]: token ? `Bearer ${token}` : "",
+        },
+        body: JSON.stringify({ servers: updatedServers })
+      });
+
+      if (!response.ok) {
+        const errorData = await response.json().catch(() => ({}));
+        throw new Error(errorData.message || `HTTP ${response.status}: ${response.statusText}`);
+      }
+
+      await response.json();
+      
+      // Refresh the current servers
+      if (onServersChange) {
+        onServersChange(updatedServers);
+      }
       
       toast({
-        title: "Server Configuration Copied",
-        description: `Configuration for ${server.name} has been copied to clipboard. Add it to your mcp.json file.`
+        title: "Server Installed",
+        description: `${server.name} has been added to your MCP configuration file as "${finalServerName}".`
       });
     } catch (error) {
       toast({
         title: "Error",
-        description: `Failed to copy configuration: ${error instanceof Error ? error.message : String(error)}`,
+        description: `Failed to install server: ${error instanceof Error ? error.message : String(error)}`,
         variant: "destructive"
       });
     }
@@ -234,16 +268,33 @@ const MCPStoreTab = ({ config, currentServers = {} }: MCPStoreTabProps) => {
         const updatedServers = { ...currentServers };
         delete updatedServers[serverName];
         
-        const updatedConfig = {
-          mcpServers: updatedServers
-        };
+        // Update the MCP configuration file via API
+        const baseUrl = getMCPProxyAddress(config);
+        const { token, header } = getMCPProxyAuthToken(config);
+        const response = await fetch(`${baseUrl}/update-mcp-config`, {
+          method: 'POST',
+          headers: {
+            'Content-Type': 'application/json',
+            [header]: token ? `Bearer ${token}` : "",
+          },
+          body: JSON.stringify({ servers: updatedServers })
+        });
 
-        // Copy to clipboard
-        await navigator.clipboard.writeText(JSON.stringify(updatedConfig, null, 2));
+        if (!response.ok) {
+          const errorData = await response.json().catch(() => ({}));
+          throw new Error(errorData.message || `HTTP ${response.status}: ${response.statusText}`);
+        }
+
+        await response.json();
+        
+        // Refresh the current servers
+        if (onServersChange) {
+          onServersChange(updatedServers);
+        }
         
         toast({
-          title: "Server Removed",
-          description: `${server.name} (${serverName}) has been removed from configuration. Updated mcp.json copied to clipboard.`
+          title: "Server Uninstalled",
+          description: `${server.name} (${serverName}) has been removed from your MCP configuration file.`
         });
       } else {
         toast({
@@ -255,7 +306,7 @@ const MCPStoreTab = ({ config, currentServers = {} }: MCPStoreTabProps) => {
     } catch (error) {
       toast({
         title: "Error",
-        description: `Failed to remove server: ${error instanceof Error ? error.message : String(error)}`,
+        description: `Failed to uninstall server: ${error instanceof Error ? error.message : String(error)}`,
         variant: "destructive"
       });
     }

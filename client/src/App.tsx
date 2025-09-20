@@ -1199,7 +1199,7 @@ const App = () => {
                     />
                     <AuthDebuggerWrapper />
                     <TabsContent value="store">
-                      <MCPStoreTab config={config} currentServers={currentServers} />
+                      <MCPStoreTab config={config} currentServers={currentServers} onServersChange={setCurrentServers} />
                     </TabsContent>
                   </>
                 )}
@@ -1226,7 +1226,7 @@ const App = () => {
                 </TabsTrigger>
               </TabsList>
               <TabsContent value="store">
-                <MCPStoreTab config={config} currentServers={currentServers} />
+                <MCPStoreTab config={config} currentServers={currentServers} onServersChange={setCurrentServers} />
               </TabsContent>
             </Tabs>
           )}

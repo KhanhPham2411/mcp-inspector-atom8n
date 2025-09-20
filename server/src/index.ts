@@ -1012,6 +1012,54 @@ app.get(
   },
 );
 
+// Endpoint to update MCP configuration file
+app.post(
+  "/update-mcp-config",
+  originValidationMiddleware,
+  authMiddleware,
+  express.json(),
+  async (req, res) => {
+    try {
+      const { servers } = req.body;
+      
+      if (!servers || typeof servers !== 'object') {
+        res.status(400).json({
+          error: "Bad Request",
+          message: "Invalid servers configuration provided"
+        });
+        return;
+      }
+
+      // Allow overriding the path via query param for flexibility/testing
+      const overridePath = (req.query.path as string) || "";
+      const homeDir = os.homedir();
+      const defaultPath = path.join(homeDir, ".cursor", "mcp.json");
+      const targetPath = overridePath || defaultPath;
+
+      // Create the updated configuration
+      const updatedConfig = {
+        mcpServers: servers
+      };
+
+      // Write the updated configuration to file
+      await fs.writeFile(targetPath, JSON.stringify(updatedConfig, null, 2), "utf8");
+
+      res.json({
+        success: true,
+        message: "MCP configuration updated successfully",
+        path: targetPath,
+        serverCount: Object.keys(servers).length
+      });
+    } catch (error: any) {
+      console.error("Error updating MCP config:", error);
+      res.status(500).json({
+        error: "Internal Server Error",
+        message: error?.message || String(error)
+      });
+    }
+  },
+);
+
 // New endpoint for on-demand tool execution
 app.post(
   "/execute-tool",
