@@ -1222,12 +1222,12 @@ app.get(
       
       // Support pagination
       const page = parseInt(req.query.page as string) || 1;
-      const limit = parseInt(req.query.limit as string) || 100;
-      const startIndex = (page - 1) * limit;
-      const endIndex = startIndex + limit;
+      const limit = parseInt(req.query.limit as string) || 50;
+      const totalLines = lines.length;
+      const endIndex = totalLines;
+      const startIndex = Math.max(0, endIndex - limit);
       
       const paginatedLines = lines.slice(startIndex, endIndex);
-      const totalLines = lines.length;
       const totalPages = Math.ceil(totalLines / limit);
       
       res.json({
@@ -1265,7 +1265,7 @@ app.get(
       
       // Support pagination
       const page = parseInt(req.query.page as string) || 1;
-      const limit = parseInt(req.query.limit as string) || 100;
+      const limit = parseInt(req.query.limit as string) || 50;
       const startIndex = (page - 1) * limit;
       const endIndex = startIndex + limit;
       

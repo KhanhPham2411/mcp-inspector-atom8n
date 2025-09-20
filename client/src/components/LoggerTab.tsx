@@ -47,7 +47,7 @@ const LoggerTab = ({ config }: { config: InspectorConfig }) => {
   const [testLevel, setTestLevel] = useState<'info' | 'warn' | 'error' | 'debug'>('info');
   const [testMessage, setTestMessage] = useState('Test log message');
   const [currentPage, setCurrentPage] = useState(1);
-  const [pageSize, setPageSize] = useState(100);
+  const [pageSize, setPageSize] = useState(50);
   const { toast } = useToast();
 
   // Fetch available log files

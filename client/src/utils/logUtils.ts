@@ -117,7 +117,7 @@ export class ServerLogUtils {
   /**
    * Get current log content with pagination
    */
-  async getCurrentLogContent(page: number = 1, limit: number = 100): Promise<LogContent> {
+  async getCurrentLogContent(page: number = 1, limit: number = 50): Promise<LogContent> {
     const { baseUrl, headers } = this.getApiConfig();
     
     const response = await fetch(`${baseUrl}/logs/current?page=${page}&limit=${limit}`, {
@@ -134,7 +134,7 @@ export class ServerLogUtils {
   /**
    * Get specific log file content with pagination
    */
-  async getLogFileContent(filename: string, page: number = 1, limit: number = 100): Promise<LogContent> {
+  async getLogFileContent(filename: string, page: number = 1, limit: number = 50): Promise<LogContent> {
     const { baseUrl, headers } = this.getApiConfig();
     
     const response = await fetch(`${baseUrl}/logs/${filename}?page=${page}&limit=${limit}`, {
