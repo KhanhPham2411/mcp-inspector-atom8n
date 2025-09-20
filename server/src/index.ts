@@ -23,6 +23,7 @@ import os from "node:os";
 import { promises as fs } from "node:fs";
 import { findActualExecutable } from "spawn-rx";
 import mcpProxy from "./mcpProxy.js";
+import logger from "./logger.js";
 import { randomUUID, randomBytes, timingSafeEqual } from "node:crypto";
 
 const DEFAULT_MCP_PROXY_LISTEN_PORT = "6277";
@@ -268,7 +269,7 @@ const createTransport = async (
   headerHolder?: { headers: HeadersInit };
 }> => {
   const query = req.query;
-  console.log("Query parameters:", JSON.stringify(query));
+  logger.info("Query parameters:", JSON.stringify(query));
 
   const transportType = query.transportType as string;
 
@@ -280,7 +281,7 @@ const createTransport = async (
 
     const { cmd, args } = findActualExecutable(command, origArgs);
 
-    console.log(`STDIO transport: command=${cmd}, args=${args}`);
+    logger.info(`STDIO transport: command=${cmd}, args=${args}`);
 
     const transport = new StdioClientTransport({
       command: cmd,
@@ -298,7 +299,7 @@ const createTransport = async (
     headers["Accept"] = "text/event-stream";
     const headerHolder = { headers };
 
-    console.log(
+    logger.info(
       `SSE transport: url=${url}, headers=${JSON.stringify(headers)}`,
     );
 
@@ -327,7 +328,7 @@ const createTransport = async (
     await transport.start();
     return { transport, headerHolder };
   } else {
-    console.error(`Invalid transport type: ${transportType}`);
+    logger.error(`Invalid transport type: ${transportType}`);
     throw new Error("Invalid transport type specified");
   }
 };
@@ -338,7 +339,7 @@ app.get(
   authMiddleware,
   async (req, res) => {
     const sessionId = req.headers["mcp-session-id"] as string;
-    console.log(`Received GET message for sessionId ${sessionId}`);
+    logger.info(`Received GET message for sessionId ${sessionId}`);
 
     const headerHolder = sessionHeaderHolders.get(sessionId);
     if (headerHolder) {
@@ -359,7 +360,7 @@ app.get(
         await transport.handleRequest(req, res);
       }
     } catch (error) {
-      console.error("Error in /mcp route:", error);
+      logger.error("Error in /mcp route:", error);
       res.status(500).json(error);
     }
   },
@@ -1186,6 +1187,181 @@ app.post(
   },
 );
 
+// Log management endpoints
+app.get(
+  "/logs",
+  originValidationMiddleware,
+  authMiddleware,
+  (req, res) => {
+    try {
+      const files = logger.getAvailableLogFiles();
+      res.json({
+        success: true,
+        files,
+        count: files.length,
+        logsDirectory: logger.getLogsDirectory()
+      });
+    } catch (error) {
+      logger.error("Error listing log files:", error);
+      res.status(500).json({
+        error: "Internal Server Error",
+        message: error instanceof Error ? error.message : String(error)
+      });
+    }
+  }
+);
+
+app.get(
+  "/logs/current",
+  originValidationMiddleware,
+  authMiddleware,
+  (req, res) => {
+    try {
+      const content = logger.readLogFile();
+      const lines = content.split('\n').filter(line => line.trim());
+      
+      // Support pagination
+      const page = parseInt(req.query.page as string) || 1;
+      const limit = parseInt(req.query.limit as string) || 100;
+      const startIndex = (page - 1) * limit;
+      const endIndex = startIndex + limit;
+      
+      const paginatedLines = lines.slice(startIndex, endIndex);
+      const totalLines = lines.length;
+      const totalPages = Math.ceil(totalLines / limit);
+      
+      res.json({
+        success: true,
+        content: paginatedLines.join('\n'),
+        pagination: {
+          page,
+          limit,
+          totalLines,
+          totalPages,
+          hasNext: page < totalPages,
+          hasPrev: page > 1
+        },
+        logFile: logger.getLogFilePath()
+      });
+    } catch (error) {
+      logger.error("Error reading current log file:", error);
+      res.status(500).json({
+        error: "Internal Server Error",
+        message: error instanceof Error ? error.message : String(error)
+      });
+    }
+  }
+);
+
+app.get(
+  "/logs/:filename",
+  originValidationMiddleware,
+  authMiddleware,
+  (req, res) => {
+    try {
+      const { filename } = req.params;
+      const content = logger.readSpecificLogFile(filename);
+      const lines = content.split('\n').filter(line => line.trim());
+      
+      // Support pagination
+      const page = parseInt(req.query.page as string) || 1;
+      const limit = parseInt(req.query.limit as string) || 100;
+      const startIndex = (page - 1) * limit;
+      const endIndex = startIndex + limit;
+      
+      const paginatedLines = lines.slice(startIndex, endIndex);
+      const totalLines = lines.length;
+      const totalPages = Math.ceil(totalLines / limit);
+      
+      res.json({
+        success: true,
+        filename,
+        content: paginatedLines.join('\n'),
+        pagination: {
+          page,
+          limit,
+          totalLines,
+          totalPages,
+          hasNext: page < totalPages,
+          hasPrev: page > 1
+        }
+      });
+    } catch (error) {
+      logger.error("Error reading log file:", error);
+      res.status(500).json({
+        error: "Internal Server Error",
+        message: error instanceof Error ? error.message : String(error)
+      });
+    }
+  }
+);
+
+app.delete(
+  "/logs/cleanup",
+  originValidationMiddleware,
+  authMiddleware,
+  (req, res) => {
+    try {
+      const daysToKeep = parseInt(req.query.days as string) || 7;
+      logger.clearOldLogs(daysToKeep);
+      
+      res.json({
+        success: true,
+        message: `Cleaned up log files older than ${daysToKeep} days`,
+        daysToKeep
+      });
+    } catch (error) {
+      logger.error("Error cleaning up logs:", error);
+      res.status(500).json({
+        error: "Internal Server Error",
+        message: error instanceof Error ? error.message : String(error)
+      });
+    }
+  }
+);
+
+app.post(
+  "/logs/test",
+  originValidationMiddleware,
+  authMiddleware,
+  express.json(),
+  (req, res) => {
+    try {
+      const { level = 'info', message = 'Test log message' } = req.body;
+      
+      switch (level) {
+        case 'info':
+          logger.info(message);
+          break;
+        case 'warn':
+          logger.warn(message);
+          break;
+        case 'error':
+          logger.error(message);
+          break;
+        case 'debug':
+          logger.debug(message);
+          break;
+        default:
+          logger.info(message);
+      }
+      
+      res.json({
+        success: true,
+        message: `Test log message written with level: ${level}`,
+        level,
+        logFile: logger.getLogFilePath()
+      });
+    } catch (error) {
+      logger.error("Error writing test log:", error);
+      res.status(500).json({
+        error: "Internal Server Error",
+        message: error instanceof Error ? error.message : String(error)
+      });
+    }
+  }
+);
+
 const PORT = parseInt(
   process.env.SERVER_PORT || DEFAULT_MCP_PROXY_LISTEN_PORT,
   10,
@@ -1194,23 +1370,23 @@ const HOST = process.env.HOST || "localhost";
 
 const server = app.listen(PORT, HOST);
 server.on("listening", () => {
-  console.log(`⚙️ Proxy server listening on ${HOST}:${PORT}`);
+  logger.info(`⚙️ Proxy server listening on ${HOST}:${PORT}`);
   if (!authDisabled) {
-    console.log(
+    logger.info(
       `🔑 Session token: ${sessionToken}\n   ` +
         `Use this token to authenticate requests or set DANGEROUSLY_OMIT_AUTH=true to disable auth`,
     );
   } else {
-    console.log(
+    logger.warn(
       `⚠️  WARNING: Authentication is disabled. This is not recommended.`,
     );
   }
 });
 server.on("error", (err) => {
   if (err.message.includes(`EADDRINUSE`)) {
-    console.error(`❌  Proxy Server PORT IS IN USE at port ${PORT} ❌ `);
+    logger.error(`❌  Proxy Server PORT IS IN USE at port ${PORT} ❌ `);
   } else {
-    console.error(err.message);
+    logger.error(err.message);
   }
   process.exit(1);
 });
