@@ -40,6 +40,7 @@ import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import {
   Bell,
   Files,
+  FileText,
   FolderTree,
   Hammer,
   Hash,
@@ -76,6 +77,7 @@ import ElicitationTab, {
   ElicitationResponse,
 } from "./components/ElicitationTab";
 import MCPStoreTab from "./components/MCPStoreTab";
+import LoggerTab from "./components/LoggerTab";
 import {
   CustomHeaders,
   migrateFromLegacyAuth,
@@ -1081,6 +1083,10 @@ const App = () => {
                   <Store className="w-4 h-4 mr-2" />
                   MCP Store
                 </TabsTrigger>
+                <TabsTrigger value="logger">
+                  <FileText className="w-4 h-4 mr-2" />
+                  Logger
+                </TabsTrigger>
               </TabsList>
 
               <div className="w-full">
@@ -1241,6 +1247,9 @@ const App = () => {
                     <TabsContent value="store">
                       <MCPStoreTab config={config} currentServers={currentServers} onServersChange={setCurrentServers} onTestConnection={handleTestConnection} />
                     </TabsContent>
+                    <TabsContent value="logger">
+                      <LoggerTab config={config} />
+                    </TabsContent>
                   </>
                 )}
               </div>
@@ -1264,14 +1273,21 @@ const App = () => {
                   <Store className="w-4 h-4 mr-2" />
                   MCP Store
                 </TabsTrigger>
+                <TabsTrigger value="logger">
+                  <FileText className="w-4 h-4 mr-2" />
+                  Logger
+                </TabsTrigger>
               </TabsList>
               <TabsContent value="store">
                 <MCPStoreTab config={config} currentServers={currentServers} onServersChange={setCurrentServers} onTestConnection={handleTestConnection} />
               </TabsContent>
+              <TabsContent value="logger">
+                <LoggerTab config={config} />
+              </TabsContent>
             </Tabs>
           )}
         </div>
-        {activeTab !== "store" && (
+        {activeTab !== "store" && activeTab !== "logger" && (
           <div
             className="relative border-t border-border"
             style={{
