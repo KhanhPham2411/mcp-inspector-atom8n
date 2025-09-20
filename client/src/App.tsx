@@ -114,6 +114,7 @@ const App = () => {
   const [notifications, setNotifications] = useState<ServerNotification[]>([]);
   const [roots, setRoots] = useState<Root[]>([]);
   const [env, setEnv] = useState<Record<string, string>>({});
+  const [currentServerName, setCurrentServerName] = useState<string | null>(null);
 
   const [config, setConfig] = useState<InspectorConfig>(() =>
     initializeInspectorConfig(CONFIG_LOCAL_STORAGE_KEY),
@@ -525,6 +526,52 @@ const App = () => {
         console.error("Error fetching default environment:", error),
       );
   }, [config]);
+
+  // Resolve current server name from ~/.cursor/mcp.json via proxy
+  useEffect(() => {
+    const resolveServerName = async () => {
+      try {
+        const resp = await fetch(`${getMCPProxyAddress(config)}/servers`);
+        if (!resp.ok) return;
+        const data = await resp.json();
+        const servers: Array<{ name: string; config: any }> = data.servers || [];
+
+        let matched: string | null = null;
+
+        if (transportType === "stdio") {
+          for (const s of servers) {
+            const cfg = s.config || {};
+            const cfgCmd = cfg.command;
+            const cfgArgs: string[] = Array.isArray(cfg.args) ? cfg.args : [];
+            const currentArgs = args.trim() ? args.trim().split(/\s+/) : [];
+            if (cfgCmd === command && JSON.stringify(cfgArgs) === JSON.stringify(currentArgs)) {
+              matched = s.name;
+              break;
+            }
+          }
+        } else {
+          for (const s of servers) {
+            const cfg = s.config || {};
+            const url = cfg.url || cfg.sseUrl;
+            if (url && url === sseUrl) {
+              matched = s.name;
+              break;
+            }
+          }
+        }
+
+        // Fallback to first server if no exact match
+        if (!matched && servers.length > 0) {
+          matched = servers[0].name;
+        }
+        setCurrentServerName(matched || null);
+      } catch (e) {
+        // ignore resolution errors
+      }
+    };
+
+    void resolveServerName();
+  }, [transportType, command, args, sseUrl, env, config]);
 
   useEffect(() => {
     rootsRef.current = roots;
@@ -1114,6 +1161,7 @@ const App = () => {
                         clearError("resources");
                         readResource(uri);
                       }}
+                      currentServerName={currentServerName || undefined}
                     />
                     <ConsoleTab />
                     <PingTab

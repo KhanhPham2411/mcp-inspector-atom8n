@@ -24,6 +24,7 @@ import {
   ChevronUp,
   Copy,
   CheckCheck,
+  Terminal,
 } from "lucide-react";
 import { useEffect, useState } from "react";
 import ListPane from "./ListPane";
@@ -47,6 +48,7 @@ const ToolsTab = ({
   nextCursor,
   resourceContent,
   onReadResource,
+  currentServerName,
 }: {
   tools: Tool[];
   listTools: () => void;
@@ -59,6 +61,7 @@ const ToolsTab = ({
   error: string | null;
   resourceContent: Record<string, string>;
   onReadResource?: (uri: string) => void;
+  currentServerName?: string;
 }) => {
   const [params, setParams] = useState<Record<string, unknown>>({});
   const [isToolRunning, setIsToolRunning] = useState(false);
@@ -66,6 +69,7 @@ const ToolsTab = ({
   const [isMetaExpanded, setIsMetaExpanded] = useState(false);
   const { toast } = useToast();
   const { copied, setCopied } = useCopy();
+  const { copied: curlCopied, setCopied: setCurlCopied } = useCopy();
 
   useEffect(() => {
     const params = Object.entries(
@@ -80,6 +84,42 @@ const ToolsTab = ({
     ]);
     setParams(Object.fromEntries(params));
   }, [selectedTool]);
+
+  const generateCurlCommand = () => {
+    if (!selectedTool) return "";
+    
+    const serverName = currentServerName || "default-server";
+    const proxyUrl = "http://localhost:6277";
+    
+    const curlCommand = `curl -X POST ${proxyUrl}/execute-tool \\
+  -H "Origin: http://localhost:6274" \\
+  -H "Content-Type: application/json" \\
+  -d '{
+    "serverName": "${serverName}",
+    "toolName": "${selectedTool.name}",
+    "toolArgs": ${JSON.stringify(params, null, 2)}
+  }'`;
+
+    return curlCommand;
+  };
+
+  const handleCopyCurl = async () => {
+    try {
+      const curlCommand = generateCurlCommand();
+      await navigator.clipboard.writeText(curlCommand);
+      setCurlCopied(true);
+      toast({
+        title: "Success",
+        description: "cURL command copied to clipboard",
+      });
+    } catch (error) {
+      toast({
+        title: "Error",
+        description: `Failed to copy cURL command: ${error instanceof Error ? error.message : String(error)}`,
+        variant: "destructive",
+      });
+    }
+  };
 
   return (
     <TabsContent value="tools">
@@ -348,6 +388,17 @@ const ToolsTab = ({
                       <Copy className="h-4 w-4 mr-2" />
                     )}
                     Copy Input
+                  </Button>
+                  <Button
+                    onClick={handleCopyCurl}
+                    variant="outline"
+                  >
+                    {curlCopied ? (
+                      <CheckCheck className="h-4 w-4 mr-2 dark:text-green-700 text-green-600" />
+                    ) : (
+                      <Terminal className="h-4 w-4 mr-2" />
+                    )}
+                    Copy cURL
                   </Button>
                 </div>
                 <ToolResults
