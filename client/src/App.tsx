@@ -1217,27 +1217,29 @@ const App = () => {
             </Tabs>
           )}
         </div>
-        <div
-          className="relative border-t border-border"
-          style={{
-            height: `${historyPaneHeight}px`,
-          }}
-        >
+        {activeTab !== "store" && (
           <div
-            className="absolute w-full h-4 -top-2 cursor-row-resize flex items-center justify-center hover:bg-accent/50 dark:hover:bg-input/40"
-            onMouseDown={handleDragStart}
+            className="relative border-t border-border"
+            style={{
+              height: `${historyPaneHeight}px`,
+            }}
           >
-            <div className="w-8 h-1 rounded-full bg-border" />
+            <div
+              className="absolute w-full h-4 -top-2 cursor-row-resize flex items-center justify-center hover:bg-accent/50 dark:hover:bg-input/40"
+              onMouseDown={handleDragStart}
+            >
+              <div className="w-8 h-1 rounded-full bg-border" />
+            </div>
+            <div className="h-full overflow-auto">
+              <HistoryAndNotifications
+                requestHistory={requestHistory}
+                serverNotifications={notifications}
+                onClearHistory={clearRequestHistory}
+                onClearNotifications={handleClearNotifications}
+              />
+            </div>
           </div>
-          <div className="h-full overflow-auto">
-            <HistoryAndNotifications
-              requestHistory={requestHistory}
-              serverNotifications={notifications}
-              onClearHistory={clearRequestHistory}
-              onClearNotifications={handleClearNotifications}
-            />
-          </div>
-        </div>
+        )}
       </div>
     </div>
   );
