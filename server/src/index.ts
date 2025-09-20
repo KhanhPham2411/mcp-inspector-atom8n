@@ -1214,7 +1214,6 @@ app.get(
 app.get(
   "/logs/current",
   originValidationMiddleware,
-  authMiddleware,
   (req, res) => {
     try {
       const content = logger.readLogFile();
@@ -1256,7 +1255,6 @@ app.get(
 app.get(
   "/logs/:filename",
   originValidationMiddleware,
-  authMiddleware,
   (req, res) => {
     try {
       const { filename } = req.params;
