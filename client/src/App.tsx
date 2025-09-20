@@ -45,6 +45,7 @@ import {
   Hash,
   Key,
   MessageSquare,
+  Store,
 } from "lucide-react";
 
 import { z } from "zod";
@@ -74,6 +75,7 @@ import ElicitationTab, {
   PendingElicitationRequest,
   ElicitationResponse,
 } from "./components/ElicitationTab";
+import MCPStoreTab from "./components/MCPStoreTab";
 import {
   CustomHeaders,
   migrateFromLegacyAuth,
@@ -307,6 +309,7 @@ const App = () => {
         "elicitations",
         "roots",
         "auth",
+        "store",
       ];
 
       const isValidTab = validTabs.includes(hash);
@@ -646,6 +649,7 @@ const App = () => {
             "elicitations",
             "roots",
             "auth",
+            "store",
           ];
 
           if (validTabs.includes(originatingTab)) {
@@ -1032,6 +1036,10 @@ const App = () => {
                   <Key className="w-4 h-4 mr-2" />
                   Auth
                 </TabsTrigger>
+                <TabsTrigger value="store">
+                  <Store className="w-4 h-4 mr-2" />
+                  MCP Store
+                </TabsTrigger>
               </TabsList>
 
               <div className="w-full">
@@ -1189,6 +1197,9 @@ const App = () => {
                       onRootsChange={handleRootsChange}
                     />
                     <AuthDebuggerWrapper />
+                    <TabsContent value="store">
+                      <MCPStoreTab config={config} />
+                    </TabsContent>
                   </>
                 )}
               </div>

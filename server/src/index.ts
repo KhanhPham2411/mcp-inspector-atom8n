@@ -679,6 +679,97 @@ app.get("/health", (req, res) => {
   });
 });
 
+// CORS-friendly JSON fetch proxy for MCP Store
+// Usage: GET /fetch-json?url=<encodedUrl>
+// - Validates origin and requires auth (same as other endpoints)
+// - Supports transforming common GitHub/Gist page URLs to raw URLs
+app.get(
+  "/fetch-json",
+  originValidationMiddleware,
+  authMiddleware,
+  async (req, res) => {
+    try {
+      const targetUrl = (req.query.url as string) || "";
+      if (!targetUrl) {
+        res.status(400).json({ error: "Bad Request", message: "Missing 'url' query parameter" });
+        return;
+      }
+
+      const safeUrl = (() => {
+        try {
+          const u = new URL(targetUrl);
+          if (!/^https?:$/.test(u.protocol)) {
+            throw new Error("Only http/https protocols are allowed");
+          }
+          // Transform common GitHub/Gist page URLs to raw content URLs
+          const host = u.hostname.toLowerCase();
+          if (host === "gist.github.com") {
+            // Expected formats:
+            // https://gist.github.com/<user>/<id>
+            // https://gist.github.com/<user>/<id>#file-...
+            const parts = u.pathname.split("/").filter(Boolean);
+            if (parts.length >= 2) {
+              const user = parts[0];
+              const id = parts[1];
+              return new URL(`https://gist.githubusercontent.com/${user}/${id}/raw`).toString();
+            }
+          }
+          if (host === "github.com") {
+            // Transform blob URLs to raw
+            // https://github.com/<user>/<repo>/blob/<branch>/<path>
+            const parts = u.pathname.split("/").filter(Boolean);
+            const blobIndex = parts.indexOf("blob");
+            if (blobIndex !== -1 && parts.length > blobIndex + 1) {
+              const user = parts[0];
+              const repo = parts[1];
+              const branch = parts[blobIndex + 1];
+              const filePath = parts.slice(blobIndex + 2).join("/");
+              return new URL(`https://raw.githubusercontent.com/${user}/${repo}/${branch}/${filePath}`).toString();
+            }
+          }
+          return u.toString();
+        } catch (e) {
+          throw new Error(`Invalid URL: ${String(e instanceof Error ? e.message : e)}`);
+        }
+      })();
+
+      const controller = new AbortController();
+      const timeout = setTimeout(() => controller.abort(), 10000);
+      try {
+        const resp = await fetch(safeUrl, {
+          headers: { "User-Agent": "mcp-inspector-proxy" },
+          signal: controller.signal,
+        });
+        if (!resp.ok) {
+          const text = await resp.text().catch(() => "");
+          res.status(resp.status).json({ error: "UpstreamError", message: text || resp.statusText });
+          return;
+        }
+        const contentType = resp.headers.get("content-type") || "";
+        if (!contentType.includes("application/json")) {
+          // Try to parse as JSON anyway
+          const text = await resp.text();
+          try {
+            const json = JSON.parse(text);
+            res.json(json);
+            return;
+          } catch {
+            res.status(415).json({ error: "Unsupported Media Type", message: "Upstream did not return JSON" });
+            return;
+          }
+        }
+        const json = await resp.json();
+        res.json(json);
+      } finally {
+        clearTimeout(timeout);
+      }
+    } catch (error: any) {
+      console.error("Error in /fetch-json:", error);
+      res.status(500).json({ error: "Internal Server Error", message: error?.message || String(error) });
+    }
+  },
+);
+
 // Returns the default Cursor MCP configuration from the user's home directory
 // Default path: <home>/.cursor/mcp.json (cross-platform)
 app.get(
