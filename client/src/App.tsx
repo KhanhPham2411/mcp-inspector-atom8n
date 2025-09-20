@@ -34,6 +34,7 @@ import {
   useDraggablePane,
   useDraggableSidebar,
 } from "./lib/hooks/useDraggablePane";
+import { useToast } from "./lib/hooks/useToast";
 
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import {
@@ -83,6 +84,7 @@ import {
 const CONFIG_LOCAL_STORAGE_KEY = "inspectorConfig_v1";
 
 const App = () => {
+  const { toast } = useToast();
   const [resources, setResources] = useState<Resource[]>([]);
   const [resourceTemplates, setResourceTemplates] = useState<
     ResourceTemplate[]
@@ -193,6 +195,24 @@ const App = () => {
 
   const updateAuthState = (updates: Partial<AuthDebuggerState>) => {
     setAuthState((prev) => ({ ...prev, ...updates }));
+  };
+
+  const handleTestConnection = (serverConfig: any) => {
+    // Set the server configuration for testing
+    if (serverConfig.command) {
+      setTransportType("stdio");
+      setCommand(serverConfig.command);
+      setArgs(serverConfig.args ? serverConfig.args.join(' ') : '');
+      if (serverConfig.env) {
+        setEnv(serverConfig.env);
+      }
+    }
+    
+    // Show a toast notification
+    toast({
+      title: "Test Connection",
+      description: "Server configuration has been set for testing. Click Connect to test the connection.",
+    });
   };
   const nextRequestId = useRef(0);
   const rootsRef = useRef<Root[]>([]);
@@ -1199,7 +1219,7 @@ const App = () => {
                     />
                     <AuthDebuggerWrapper />
                     <TabsContent value="store">
-                      <MCPStoreTab config={config} currentServers={currentServers} onServersChange={setCurrentServers} />
+                      <MCPStoreTab config={config} currentServers={currentServers} onServersChange={setCurrentServers} onTestConnection={handleTestConnection} />
                     </TabsContent>
                   </>
                 )}
@@ -1226,7 +1246,7 @@ const App = () => {
                 </TabsTrigger>
               </TabsList>
               <TabsContent value="store">
-                <MCPStoreTab config={config} currentServers={currentServers} onServersChange={setCurrentServers} />
+                <MCPStoreTab config={config} currentServers={currentServers} onServersChange={setCurrentServers} onTestConnection={handleTestConnection} />
               </TabsContent>
             </Tabs>
           )}

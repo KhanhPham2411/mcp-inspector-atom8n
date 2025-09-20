@@ -17,7 +17,8 @@ import {
   Package,
   Loader2,
   RefreshCw,
-  ExternalLink as GotoIcon
+  ExternalLink as GotoIcon,
+  Play
 } from "lucide-react";
 import { useToast } from "../lib/hooks/useToast";
 import { InspectorConfig } from "@/lib/configurationTypes";
@@ -50,9 +51,10 @@ interface MCPStoreTabProps {
   config: InspectorConfig;
   currentServers?: Record<string, any>;
   onServersChange?: (servers: Record<string, any>) => void;
+  onTestConnection?: (serverConfig: any) => void;
 }
 
-const MCPStoreTab = ({ config, currentServers = {}, onServersChange }: MCPStoreTabProps) => {
+const MCPStoreTab = ({ config, currentServers = {}, onServersChange, onTestConnection }: MCPStoreTabProps) => {
   const [sources, setSources] = useState<MCPSource[]>([
     {
       name: "Default MCP Store",
@@ -246,6 +248,25 @@ const MCPStoreTab = ({ config, currentServers = {}, onServersChange }: MCPStoreT
         title: "Error",
         description: `Failed to install server: ${error instanceof Error ? error.message : String(error)}`,
         variant: "destructive"
+      });
+    }
+  };
+
+  const handleTestConnection = (server: MCPServer) => {
+    const serverConfig = {
+      command: server.command,
+      args: server.args,
+      env: server.env,
+      disabled: server.disabled,
+      autoApprove: server.autoApprove
+    };
+
+    if (onTestConnection) {
+      onTestConnection(serverConfig);
+    } else {
+      toast({
+        title: "Test Connection",
+        description: `Testing connection to ${server.name}...`,
       });
     }
   };
@@ -466,6 +487,14 @@ const MCPStoreTab = ({ config, currentServers = {}, onServersChange }: MCPStoreT
                   <Button
                     variant="outline"
                     size="sm"
+                    onClick={() => handleTestConnection(server)}
+                    title="Test connection to this server"
+                  >
+                    <Play className="w-4 h-4" />
+                  </Button>
+                  <Button
+                    variant="outline"
+                    size="sm"
                     onClick={() => {
                       const config = {
                         command: server.command,
@@ -476,6 +505,7 @@ const MCPStoreTab = ({ config, currentServers = {}, onServersChange }: MCPStoreT
                       };
                       console.log("Server config:", config);
                     }}
+                    title="View server configuration"
                   >
                     <ExternalLink className="w-4 h-4" />
                   </Button>
