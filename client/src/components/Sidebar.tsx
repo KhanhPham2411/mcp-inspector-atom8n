@@ -72,6 +72,7 @@ interface SidebarProps {
   loggingSupported: boolean;
   config: InspectorConfig;
   setConfig: (config: InspectorConfig) => void;
+  onServersChange?: (servers: Record<string, any>) => void;
 }
 
 const Sidebar = ({
@@ -101,6 +102,7 @@ const Sidebar = ({
   loggingSupported,
   config,
   setConfig,
+  onServersChange,
 }: SidebarProps) => {
   const [theme, setTheme] = useTheme();
   const [activeTab, setActiveTab] = useState<"file" | "manual">("file");
@@ -321,6 +323,13 @@ const Sidebar = ({
       loadDefaultConfig();
     }
   }, [loadDefaultConfig, loadedServers]);
+
+  // Notify parent when servers change
+  useEffect(() => {
+    if (onServersChange) {
+      onServersChange(loadedServers);
+    }
+  }, [loadedServers, onServersChange]);
 
 
   // Shared utility function to generate server config

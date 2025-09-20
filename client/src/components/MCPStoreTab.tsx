@@ -48,9 +48,10 @@ interface MCPSourceResponse {
 
 interface MCPStoreTabProps {
   config: InspectorConfig;
+  currentServers?: Record<string, any>;
 }
 
-const MCPStoreTab = ({ config }: MCPStoreTabProps) => {
+const MCPStoreTab = ({ config, currentServers = {} }: MCPStoreTabProps) => {
   const [sources, setSources] = useState<MCPSource[]>([
     {
       name: "Default MCP Store",
@@ -175,6 +176,19 @@ const MCPStoreTab = ({ config }: MCPStoreTabProps) => {
     );
   };
 
+  // Check if a server is already installed
+  const isServerInstalled = (server: MCPServer): boolean => {
+    return Object.values(currentServers).some((existingServer: any) => {
+      // Check if command and args match
+      if (existingServer.command === server.command) {
+        const existingArgs = Array.isArray(existingServer.args) ? existingServer.args : [];
+        const serverArgs = Array.isArray(server.args) ? server.args : [];
+        return JSON.stringify(existingArgs) === JSON.stringify(serverArgs);
+      }
+      return false;
+    });
+  };
+
   const handleInstallServer = async (server: MCPServer) => {
     try {
       // Generate the server configuration
@@ -197,6 +211,51 @@ const MCPStoreTab = ({ config }: MCPStoreTabProps) => {
       toast({
         title: "Error",
         description: `Failed to copy configuration: ${error instanceof Error ? error.message : String(error)}`,
+        variant: "destructive"
+      });
+    }
+  };
+
+  const handleUninstallServer = async (server: MCPServer) => {
+    try {
+      // Find the server name in current configuration
+      const serverName = Object.keys(currentServers).find(name => {
+        const existingServer = currentServers[name];
+        if (existingServer.command === server.command) {
+          const existingArgs = Array.isArray(existingServer.args) ? existingServer.args : [];
+          const serverArgs = Array.isArray(server.args) ? server.args : [];
+          return JSON.stringify(existingArgs) === JSON.stringify(serverArgs);
+        }
+        return false;
+      });
+
+      if (serverName) {
+        // Generate configuration without this server
+        const updatedServers = { ...currentServers };
+        delete updatedServers[serverName];
+        
+        const updatedConfig = {
+          mcpServers: updatedServers
+        };
+
+        // Copy to clipboard
+        await navigator.clipboard.writeText(JSON.stringify(updatedConfig, null, 2));
+        
+        toast({
+          title: "Server Removed",
+          description: `${server.name} (${serverName}) has been removed from configuration. Updated mcp.json copied to clipboard.`
+        });
+      } else {
+        toast({
+          title: "Server Not Found",
+          description: `Could not find ${server.name} in current configuration.`,
+          variant: "destructive"
+        });
+      }
+    } catch (error) {
+      toast({
+        title: "Error",
+        description: `Failed to remove server: ${error instanceof Error ? error.message : String(error)}`,
         variant: "destructive"
       });
     }
@@ -333,14 +392,26 @@ const MCPStoreTab = ({ config }: MCPStoreTabProps) => {
                 )}
 
                 <div className="flex items-center gap-2">
-                  <Button
-                    onClick={() => handleInstallServer(server)}
-                    className="flex-1"
-                    size="sm"
-                  >
-                    <Download className="w-4 h-4 mr-2" />
-                    Install
-                  </Button>
+                  {isServerInstalled(server) ? (
+                    <Button
+                      onClick={() => handleUninstallServer(server)}
+                      className="flex-1"
+                      size="sm"
+                      variant="destructive"
+                    >
+                      <Trash2 className="w-4 h-4 mr-2" />
+                      Uninstall
+                    </Button>
+                  ) : (
+                    <Button
+                      onClick={() => handleInstallServer(server)}
+                      className="flex-1"
+                      size="sm"
+                    >
+                      <Download className="w-4 h-4 mr-2" />
+                      Install
+                    </Button>
+                  )}
                   <Button
                     variant="outline"
                     size="sm"

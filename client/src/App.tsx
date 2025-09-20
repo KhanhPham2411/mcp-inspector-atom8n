@@ -186,6 +186,7 @@ const App = () => {
     >
   >([]);
   const [isAuthDebuggerVisible, setIsAuthDebuggerVisible] = useState(false);
+  const [currentServers, setCurrentServers] = useState<Record<string, any>>({});
 
   const [authState, setAuthState] =
     useState<AuthDebuggerState>(EMPTY_DEBUGGER_STATE);
@@ -955,6 +956,7 @@ const App = () => {
           logLevel={logLevel}
           sendLogLevelRequest={sendLogLevelRequest}
           loggingSupported={!!serverCapabilities?.logging || false}
+          onServersChange={setCurrentServers}
         />
         <div
           onMouseDown={handleSidebarDragStart}
@@ -1197,7 +1199,7 @@ const App = () => {
                     />
                     <AuthDebuggerWrapper />
                     <TabsContent value="store">
-                      <MCPStoreTab config={config} />
+                      <MCPStoreTab config={config} currentServers={currentServers} />
                     </TabsContent>
                   </>
                 )}
@@ -1224,7 +1226,7 @@ const App = () => {
                 </TabsTrigger>
               </TabsList>
               <TabsContent value="store">
-                <MCPStoreTab config={config} />
+                <MCPStoreTab config={config} currentServers={currentServers} />
               </TabsContent>
             </Tabs>
           )}
