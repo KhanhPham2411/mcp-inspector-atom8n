@@ -16,7 +16,8 @@ import {
   ExternalLink,
   Package,
   Loader2,
-  RefreshCw
+  RefreshCw,
+  ExternalLink as GotoIcon
 } from "lucide-react";
 import { useToast } from "../lib/hooks/useToast";
 import { InspectorConfig } from "@/lib/configurationTypes";
@@ -375,7 +376,7 @@ const MCPStoreTab = ({ config }: MCPStoreTabProps) => {
 
       {/* Source Configuration Dialog */}
       <Dialog open={showSourceConfig} onOpenChange={setShowSourceConfig}>
-        <DialogContent className="max-w-2xl">
+        <DialogContent className="max-w-4xl w-full">
           <DialogHeader>
             <DialogTitle>Configure MCP Sources</DialogTitle>
             <DialogDescription>
@@ -389,22 +390,34 @@ const MCPStoreTab = ({ config }: MCPStoreTabProps) => {
               <Label className="text-sm font-medium mb-2 block">Current Sources</Label>
               <div className="space-y-2">
                 {sources.map((source, index) => (
-                  <div key={index} className="flex items-center gap-2 p-3 border rounded-lg">
-                    <Switch
-                      checked={source.enabled}
-                      onCheckedChange={() => handleToggleSource(source.name)}
-                    />
-                    <div className="flex-1">
-                      <div className="font-medium">{source.name}</div>
-                      <div className="text-sm text-muted-foreground">{source.url}</div>
+                  <div key={index} className="flex items-start gap-3 p-4 border rounded-lg">
+                    <div className="flex-shrink-0 pt-1">
+                      <Switch
+                        checked={source.enabled}
+                        onCheckedChange={() => handleToggleSource(source.name)}
+                      />
                     </div>
-                    <Button
-                      variant="outline"
-                      size="sm"
-                      onClick={() => handleRemoveSource(source.name)}
-                    >
-                      <Trash2 className="w-4 h-4" />
-                    </Button>
+                    <div className="flex-1 min-w-0">
+                      <div className="font-medium mb-1">{source.name}</div>
+                      <div className="text-sm text-muted-foreground break-all">{source.url}</div>
+                    </div>
+                    <div className="flex-shrink-0 flex gap-1">
+                      <Button
+                        variant="outline"
+                        size="sm"
+                        onClick={() => window.open(source.url, '_blank')}
+                        title="Open source URL"
+                      >
+                        <GotoIcon className="w-4 h-4" />
+                      </Button>
+                      <Button
+                        variant="outline"
+                        size="sm"
+                        onClick={() => handleRemoveSource(source.name)}
+                      >
+                        <Trash2 className="w-4 h-4" />
+                      </Button>
+                    </div>
                   </div>
                 ))}
               </div>
