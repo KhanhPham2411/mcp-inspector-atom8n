@@ -314,7 +314,13 @@ const App = () => {
       const isValidTab = validTabs.includes(hash);
 
       if (!isValidTab) {
-        const defaultTab = "store";
+        const defaultTab = serverCapabilities?.resources
+          ? "resources"
+          : serverCapabilities?.prompts
+            ? "prompts"
+            : serverCapabilities?.tools
+              ? "tools"
+              : "ping";
 
         setActiveTab(defaultTab);
         window.location.hash = defaultTab;
@@ -575,7 +581,13 @@ const App = () => {
 
   useEffect(() => {
     if (mcpClient && !window.location.hash) {
-      const defaultTab = "store";
+      const defaultTab = serverCapabilities?.resources
+        ? "resources"
+        : serverCapabilities?.prompts
+          ? "prompts"
+          : serverCapabilities?.tools
+            ? "tools"
+            : "ping";
       window.location.hash = defaultTab;
     } else if (!mcpClient && window.location.hash) {
       // Clear hash when disconnected - completely remove the fragment
