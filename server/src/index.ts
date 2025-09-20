@@ -16,6 +16,7 @@ import { StreamableHTTPClientTransport } from "@modelcontextprotocol/sdk/client/
 import { StreamableHTTPServerTransport } from "@modelcontextprotocol/sdk/server/streamableHttp.js";
 import { SSEServerTransport } from "@modelcontextprotocol/sdk/server/sse.js";
 import { Transport } from "@modelcontextprotocol/sdk/shared/transport.js";
+import { Client } from "@modelcontextprotocol/sdk/client/index.js";
 import express from "express";
 import path from "node:path";
 import os from "node:os";
@@ -764,6 +765,287 @@ app.get("/config", originValidationMiddleware, authMiddleware, (req, res) => {
     res.status(500).json(error);
   }
 });
+
+// Endpoint to list available servers and their tools
+app.get(
+  "/servers",
+  originValidationMiddleware,
+  async (req, res) => {
+    try {
+      // Load MCP configuration
+      const homeDir = os.homedir();
+      const configPath = path.join(homeDir, ".cursor", "mcp.json");
+      const fileContent = await fs.readFile(configPath, "utf8");
+      const config = JSON.parse(fileContent);
+      const servers = config.servers || config.mcpServers;
+
+      if (!servers) {
+        res.status(404).json({
+          error: "Not Found",
+          message: "No MCP servers found in configuration",
+        });
+        return;
+      }
+
+      const serverList = Object.keys(servers).map(serverName => ({
+        name: serverName,
+        config: servers[serverName],
+        transportType: servers[serverName].type || (servers[serverName].url ? 'http' : 'stdio')
+      }));
+
+      res.json({
+        servers: serverList,
+        count: serverList.length
+      });
+    } catch (error) {
+      console.error("Error listing servers:", error);
+      res.status(500).json({
+        error: "Internal Server Error",
+        message: error instanceof Error ? error.message : String(error),
+      });
+    }
+  },
+);
+
+// Endpoint to get tools for a specific server
+app.get(
+  "/servers/:serverName/tools",
+  originValidationMiddleware,
+  async (req, res) => {
+    const { serverName } = req.params;
+
+    try {
+      // Load MCP configuration
+      const homeDir = os.homedir();
+      const configPath = path.join(homeDir, ".cursor", "mcp.json");
+      const fileContent = await fs.readFile(configPath, "utf8");
+      const config = JSON.parse(fileContent);
+      const servers = config.servers || config.mcpServers;
+
+      if (!servers || !servers[serverName]) {
+        res.status(404).json({
+          error: "Not Found",
+          message: `MCP server '${serverName}' not found in configuration`,
+        });
+        return;
+      }
+
+      const serverConfig = servers[serverName];
+      console.log(`Getting tools for server '${serverName}'`);
+
+      // Create transport based on server configuration
+      let transport: Transport;
+      let headerHolder: { headers: HeadersInit } | undefined;
+
+      if (serverConfig.type === "sse" || serverConfig.url) {
+        // SSE or StreamableHTTP transport
+        const url = serverConfig.url || serverConfig.sseUrl;
+        if (!url) {
+          res.status(400).json({
+            error: "Bad Request",
+            message: "Server configuration missing URL for SSE/HTTP transport",
+          });
+          return;
+        }
+
+        const headers = getHttpHeaders(req);
+        headers["Accept"] = "text/event-stream, application/json";
+        headerHolder = { headers };
+
+        if (serverConfig.type === "sse") {
+          transport = new SSEClientTransport(new URL(url), {
+            eventSourceInit: {
+              fetch: createCustomFetch(headerHolder),
+            },
+            requestInit: {
+              headers: headerHolder.headers,
+            },
+          });
+        } else {
+          transport = new StreamableHTTPClientTransport(new URL(url), {
+            fetch: createCustomFetch(headerHolder),
+          });
+        }
+      } else {
+        // STDIO transport
+        const command = serverConfig.command || "node";
+        const args = serverConfig.args || [];
+        const env = { ...defaultEnvironment, ...process.env, ...serverConfig.env };
+
+        const { cmd, args: processedArgs } = findActualExecutable(command, args);
+        transport = new StdioClientTransport({
+          command: cmd,
+          args: processedArgs,
+          env,
+          stderr: "pipe",
+        });
+      }
+
+      // Create MCP client
+      const client = new Client({
+        name: "mcp-inspector-tool-lister",
+        version: "1.0.0",
+      });
+
+      try {
+        // Connect to server (connect() will start the transport automatically)
+        await client.connect(transport);
+
+        // Get tools list
+        const toolsResponse = await client.listTools();
+        const tools = toolsResponse.tools || [];
+
+        res.json({
+          success: true,
+          serverName,
+          tools,
+          count: tools.length
+        });
+      } finally {
+        // Always disconnect and cleanup
+        try {
+          await client.close();
+          await transport.close();
+        } catch (cleanupError) {
+          console.warn("Error during cleanup:", cleanupError);
+        }
+      }
+    } catch (error) {
+      console.error("Error getting tools for server:", error);
+      res.status(500).json({
+        error: "Internal Server Error",
+        message: error instanceof Error ? error.message : String(error),
+        serverName,
+      });
+    }
+  },
+);
+
+// New endpoint for on-demand tool execution
+app.post(
+  "/execute-tool",
+  originValidationMiddleware,
+  express.json(),
+  async (req, res) => {
+    const { serverName, toolName, toolArgs = {} } = req.body;
+
+    if (!serverName || !toolName) {
+      res.status(400).json({
+        error: "Bad Request",
+        message: "Both serverName and toolName are required",
+      });
+      return;
+    }
+
+    try {
+      // Load MCP configuration
+      const homeDir = os.homedir();
+      const configPath = path.join(homeDir, ".cursor", "mcp.json");
+      const fileContent = await fs.readFile(configPath, "utf8");
+      const config = JSON.parse(fileContent);
+      const servers = config.servers || config.mcpServers;
+
+      if (!servers || !servers[serverName]) {
+        res.status(404).json({
+          error: "Not Found",
+          message: `MCP server '${serverName}' not found in configuration`,
+        });
+        return;
+      }
+
+      const serverConfig = servers[serverName];
+      console.log(`Executing tool '${toolName}' on server '${serverName}'`);
+
+      // Create transport based on server configuration
+      let transport: Transport;
+      let headerHolder: { headers: HeadersInit } | undefined;
+
+      if (serverConfig.type === "sse" || serverConfig.url) {
+        // SSE or StreamableHTTP transport
+        const url = serverConfig.url || serverConfig.sseUrl;
+        if (!url) {
+          res.status(400).json({
+            error: "Bad Request",
+            message: "Server configuration missing URL for SSE/HTTP transport",
+          });
+          return;
+        }
+
+        const headers = getHttpHeaders(req);
+        headers["Accept"] = "text/event-stream, application/json";
+        headerHolder = { headers };
+
+        if (serverConfig.type === "sse") {
+          transport = new SSEClientTransport(new URL(url), {
+            eventSourceInit: {
+              fetch: createCustomFetch(headerHolder),
+            },
+            requestInit: {
+              headers: headerHolder.headers,
+            },
+          });
+        } else {
+          transport = new StreamableHTTPClientTransport(new URL(url), {
+            fetch: createCustomFetch(headerHolder),
+          });
+        }
+      } else {
+        // STDIO transport
+        const command = serverConfig.command || "node";
+        const args = serverConfig.args || [];
+        const env = { ...defaultEnvironment, ...process.env, ...serverConfig.env };
+
+        const { cmd, args: processedArgs } = findActualExecutable(command, args);
+        transport = new StdioClientTransport({
+          command: cmd,
+          args: processedArgs,
+          env,
+          stderr: "pipe",
+        });
+      }
+
+      // Create MCP client
+      const client = new Client({
+        name: "mcp-inspector-executor",
+        version: "1.0.0",
+      });
+
+      try {
+        // Connect to server (connect() will start the transport automatically)
+        await client.connect(transport);
+
+        // Execute the tool
+        const result = await client.callTool({
+          name: toolName,
+          arguments: toolArgs,
+        });
+
+        res.json({
+          success: true,
+          result,
+          serverName,
+          toolName,
+        });
+      } finally {
+        // Always disconnect and cleanup
+        try {
+          await client.close();
+          await transport.close();
+        } catch (cleanupError) {
+          console.warn("Error during cleanup:", cleanupError);
+        }
+      }
+    } catch (error) {
+      console.error("Error executing tool:", error);
+      res.status(500).json({
+        error: "Internal Server Error",
+        message: error instanceof Error ? error.message : String(error),
+        serverName,
+        toolName,
+      });
+    }
+  },
+);
 
 const PORT = parseInt(
   process.env.SERVER_PORT || DEFAULT_MCP_PROXY_LISTEN_PORT,
