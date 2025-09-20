@@ -36,7 +36,6 @@ import {
 } from "./lib/hooks/useDraggablePane";
 
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
-import { Button } from "@/components/ui/button";
 import {
   Bell,
   Files,
@@ -220,7 +219,7 @@ const App = () => {
 
   const [activeTab, setActiveTab] = useState<string>(() => {
     const hash = window.location.hash.slice(1);
-    const initialTab = hash || "resources";
+    const initialTab = hash || "store";
     return initialTab;
   });
 
@@ -315,13 +314,7 @@ const App = () => {
       const isValidTab = validTabs.includes(hash);
 
       if (!isValidTab) {
-        const defaultTab = serverCapabilities?.resources
-          ? "resources"
-          : serverCapabilities?.prompts
-            ? "prompts"
-            : serverCapabilities?.tools
-              ? "tools"
-              : "ping";
+        const defaultTab = "store";
 
         setActiveTab(defaultTab);
         window.location.hash = defaultTab;
@@ -582,13 +575,7 @@ const App = () => {
 
   useEffect(() => {
     if (mcpClient && !window.location.hash) {
-      const defaultTab = serverCapabilities?.resources
-        ? "resources"
-        : serverCapabilities?.prompts
-          ? "prompts"
-          : serverCapabilities?.tools
-            ? "tools"
-            : "ping";
+      const defaultTab = "store";
       window.location.hash = defaultTab;
     } else if (!mcpClient && window.location.hash) {
       // Clear hash when disconnected - completely remove the fragment
@@ -1213,23 +1200,21 @@ const App = () => {
               <AuthDebuggerWrapper />
             </Tabs>
           ) : (
-            <div className="flex flex-col items-center justify-center h-full gap-4">
-              <p className="text-lg text-gray-500 dark:text-gray-400">
-                Connect to an MCP server to start inspecting
-              </p>
-              <div className="flex items-center gap-2">
-                <p className="text-sm text-muted-foreground">
-                  Need to configure authentication?
-                </p>
-                <Button
-                  variant="outline"
-                  size="sm"
-                  onClick={() => setIsAuthDebuggerVisible(true)}
-                >
-                  Open Auth Settings
-                </Button>
-              </div>
-            </div>
+            <Tabs
+              defaultValue={"store"}
+              className="w-full p-4"
+              onValueChange={(value) => (window.location.hash = value)}
+            >
+              <TabsList className="mb-4 py-0">
+                <TabsTrigger value="store">
+                  <Store className="w-4 h-4 mr-2" />
+                  MCP Store
+                </TabsTrigger>
+              </TabsList>
+              <TabsContent value="store">
+                <MCPStoreTab config={config} />
+              </TabsContent>
+            </Tabs>
           )}
         </div>
         <div
