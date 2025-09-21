@@ -1,5 +1,8 @@
 {
-  "name": "@modelcontextprotocol/inspector",
+  "name": "@atom8n/inspector",
+  "publishConfig": {
+    "access": "public"
+  },
   "version": "0.16.7",
   "description": "Model Context Protocol inspector",
   "license": "MIT",
@@ -8,7 +11,7 @@
   "bugs": "https://github.com/modelcontextprotocol/inspector/issues",
   "type": "module",
   "bin": {
-    "mcp-inspector": "cli/build/cli.js"
+    "mcp-inspector-atom8n": "cli/build/cli.js"
   },
   "files": [
     "client/bin",
