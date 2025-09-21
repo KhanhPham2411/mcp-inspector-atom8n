@@ -158,7 +158,7 @@ const sessionHeaderHolders: Map<string, { headers: HeadersInit }> = new Map(); /
 // Use provided token from environment or generate a new one
 const sessionToken =
   process.env.MCP_PROXY_AUTH_TOKEN || randomBytes(32).toString("hex");
-const authDisabled = !!process.env.DANGEROUSLY_OMIT_AUTH;
+const authDisabled = process.env.DANGEROUSLY_OMIT_AUTH !== "false";
 
 // Origin validation middleware to prevent DNS rebinding attacks
 const originValidationMiddleware = (
@@ -692,7 +692,12 @@ app.get(
     try {
       const targetUrl = (req.query.url as string) || "";
       if (!targetUrl) {
-        res.status(400).json({ error: "Bad Request", message: "Missing 'url' query parameter" });
+        res
+          .status(400)
+          .json({
+            error: "Bad Request",
+            message: "Missing 'url' query parameter",
+          });
         return;
       }
 
@@ -712,7 +717,9 @@ app.get(
             if (parts.length >= 2) {
               const user = parts[0];
               const id = parts[1];
-              return new URL(`https://gist.githubusercontent.com/${user}/${id}/raw`).toString();
+              return new URL(
+                `https://gist.githubusercontent.com/${user}/${id}/raw`,
+              ).toString();
             }
           }
           if (host === "github.com") {
@@ -725,12 +732,16 @@ app.get(
               const repo = parts[1];
               const branch = parts[blobIndex + 1];
               const filePath = parts.slice(blobIndex + 2).join("/");
-              return new URL(`https://raw.githubusercontent.com/${user}/${repo}/${branch}/${filePath}`).toString();
+              return new URL(
+                `https://raw.githubusercontent.com/${user}/${repo}/${branch}/${filePath}`,
+              ).toString();
             }
           }
           return u.toString();
         } catch (e) {
-          throw new Error(`Invalid URL: ${String(e instanceof Error ? e.message : e)}`);
+          throw new Error(
+            `Invalid URL: ${String(e instanceof Error ? e.message : e)}`,
+          );
         }
       })();
 
@@ -743,7 +754,9 @@ app.get(
         });
         if (!resp.ok) {
           const text = await resp.text().catch(() => "");
-          res.status(resp.status).json({ error: "UpstreamError", message: text || resp.statusText });
+          res
+            .status(resp.status)
+            .json({ error: "UpstreamError", message: text || resp.statusText });
           return;
         }
         const contentType = resp.headers.get("content-type") || "";
@@ -755,7 +768,12 @@ app.get(
             res.json(json);
             return;
           } catch {
-            res.status(415).json({ error: "Unsupported Media Type", message: "Upstream did not return JSON" });
+            res
+              .status(415)
+              .json({
+                error: "Unsupported Media Type",
+                message: "Upstream did not return JSON",
+              });
             return;
           }
         }
@@ -766,7 +784,12 @@ app.get(
       }
     } catch (error: any) {
       console.error("Error in /fetch-json:", error);
-      res.status(500).json({ error: "Internal Server Error", message: error?.message || String(error) });
+      res
+        .status(500)
+        .json({
+          error: "Internal Server Error",
+          message: error?.message || String(error),
+        });
     }
   },
 );
@@ -859,45 +882,43 @@ app.get("/config", originValidationMiddleware, authMiddleware, (req, res) => {
 });
 
 // Endpoint to list available servers and their tools
-app.get(
-  "/servers",
-  originValidationMiddleware,
-  async (req, res) => {
-    try {
-      // Load MCP configuration
-      const homeDir = os.homedir();
-      const configPath = path.join(homeDir, ".cursor", "mcp.json");
-      const fileContent = await fs.readFile(configPath, "utf8");
-      const config = JSON.parse(fileContent);
-      const servers = config.servers || config.mcpServers;
+app.get("/servers", originValidationMiddleware, async (req, res) => {
+  try {
+    // Load MCP configuration
+    const homeDir = os.homedir();
+    const configPath = path.join(homeDir, ".cursor", "mcp.json");
+    const fileContent = await fs.readFile(configPath, "utf8");
+    const config = JSON.parse(fileContent);
+    const servers = config.servers || config.mcpServers;
 
-      if (!servers) {
-        res.status(404).json({
-          error: "Not Found",
-          message: "No MCP servers found in configuration",
-        });
-        return;
-      }
-
-      const serverList = Object.keys(servers).map(serverName => ({
-        name: serverName,
-        config: servers[serverName],
-        transportType: servers[serverName].type || (servers[serverName].url ? 'http' : 'stdio')
-      }));
-
-      res.json({
-        servers: serverList,
-        count: serverList.length
+    if (!servers) {
+      res.status(404).json({
+        error: "Not Found",
+        message: "No MCP servers found in configuration",
       });
-    } catch (error) {
-      console.error("Error listing servers:", error);
-      res.status(500).json({
-        error: "Internal Server Error",
-        message: error instanceof Error ? error.message : String(error),
-      });
+      return;
     }
-  },
-);
+
+    const serverList = Object.keys(servers).map((serverName) => ({
+      name: serverName,
+      config: servers[serverName],
+      transportType:
+        servers[serverName].type ||
+        (servers[serverName].url ? "http" : "stdio"),
+    }));
+
+    res.json({
+      servers: serverList,
+      count: serverList.length,
+    });
+  } catch (error) {
+    console.error("Error listing servers:", error);
+    res.status(500).json({
+      error: "Internal Server Error",
+      message: error instanceof Error ? error.message : String(error),
+    });
+  }
+});
 
 // Endpoint to get tools for a specific server
 app.get(
@@ -962,9 +983,16 @@ app.get(
         // STDIO transport
         const command = serverConfig.command || "node";
         const args = serverConfig.args || [];
-        const env = { ...defaultEnvironment, ...process.env, ...serverConfig.env };
+        const env = {
+          ...defaultEnvironment,
+          ...process.env,
+          ...serverConfig.env,
+        };
 
-        const { cmd, args: processedArgs } = findActualExecutable(command, args);
+        const { cmd, args: processedArgs } = findActualExecutable(
+          command,
+          args,
+        );
         transport = new StdioClientTransport({
           command: cmd,
           args: processedArgs,
@@ -991,7 +1019,7 @@ app.get(
           success: true,
           serverName,
           tools,
-          count: tools.length
+          count: tools.length,
         });
       } finally {
         // Always disconnect and cleanup
@@ -1022,11 +1050,11 @@ app.post(
   async (req, res) => {
     try {
       const { servers } = req.body;
-      
-      if (!servers || typeof servers !== 'object') {
+
+      if (!servers || typeof servers !== "object") {
         res.status(400).json({
           error: "Bad Request",
-          message: "Invalid servers configuration provided"
+          message: "Invalid servers configuration provided",
         });
         return;
       }
@@ -1039,23 +1067,27 @@ app.post(
 
       // Create the updated configuration
       const updatedConfig = {
-        mcpServers: servers
+        mcpServers: servers,
       };
 
       // Write the updated configuration to file
-      await fs.writeFile(targetPath, JSON.stringify(updatedConfig, null, 2), "utf8");
+      await fs.writeFile(
+        targetPath,
+        JSON.stringify(updatedConfig, null, 2),
+        "utf8",
+      );
 
       res.json({
         success: true,
         message: "MCP configuration updated successfully",
         path: targetPath,
-        serverCount: Object.keys(servers).length
+        serverCount: Object.keys(servers).length,
       });
     } catch (error: any) {
       console.error("Error updating MCP config:", error);
       res.status(500).json({
         error: "Internal Server Error",
-        message: error?.message || String(error)
+        message: error?.message || String(error),
       });
     }
   },
@@ -1133,9 +1165,16 @@ app.post(
         // STDIO transport
         const command = serverConfig.command || "node";
         const args = serverConfig.args || [];
-        const env = { ...defaultEnvironment, ...process.env, ...serverConfig.env };
+        const env = {
+          ...defaultEnvironment,
+          ...process.env,
+          ...serverConfig.env,
+        };
 
-        const { cmd, args: processedArgs } = findActualExecutable(command, args);
+        const { cmd, args: processedArgs } = findActualExecutable(
+          command,
+          args,
+        );
         transport = new StdioClientTransport({
           command: cmd,
           args: processedArgs,
@@ -1188,109 +1227,98 @@ app.post(
 );
 
 // Log management endpoints
-app.get(
-  "/logs",
-  originValidationMiddleware,
-  authMiddleware,
-  (req, res) => {
-    try {
-      const files = logger.getAvailableLogFiles();
-      res.json({
-        success: true,
-        files,
-        count: files.length,
-        logsDirectory: logger.getLogsDirectory()
-      });
-    } catch (error) {
-      logger.error("Error listing log files:", error);
-      res.status(500).json({
-        error: "Internal Server Error",
-        message: error instanceof Error ? error.message : String(error)
-      });
-    }
+app.get("/logs", originValidationMiddleware, authMiddleware, (req, res) => {
+  try {
+    const files = logger.getAvailableLogFiles();
+    res.json({
+      success: true,
+      files,
+      count: files.length,
+      logsDirectory: logger.getLogsDirectory(),
+    });
+  } catch (error) {
+    logger.error("Error listing log files:", error);
+    res.status(500).json({
+      error: "Internal Server Error",
+      message: error instanceof Error ? error.message : String(error),
+    });
   }
-);
+});
 
-app.get(
-  "/logs/current",
-  (req, res) => {
-    try {
-      const content = logger.readLogFile();
-      const lines = content.split('\n').filter(line => line.trim());
-      
-      // Support pagination
-      const page = parseInt(req.query.page as string) || 1;
-      const limit = parseInt(req.query.limit as string) || 50;
-      const totalLines = lines.length;
-      const endIndex = totalLines;
-      const startIndex = Math.max(0, endIndex - limit);
-      
-      const paginatedLines = lines.slice(startIndex, endIndex);
-      const totalPages = Math.ceil(totalLines / limit);
-      
-      res.json({
-        success: true,
-        content: paginatedLines.join('\n'),
-        pagination: {
-          page,
-          limit,
-          totalLines,
-          totalPages,
-          hasNext: page < totalPages,
-          hasPrev: page > 1
-        },
-        logFile: logger.getLogFilePath()
-      });
-    } catch (error) {
-      logger.error("Error reading current log file:", error);
-      res.status(500).json({
-        error: "Internal Server Error",
-        message: error instanceof Error ? error.message : String(error)
-      });
-    }
-  }
-);
+app.get("/logs/current", (req, res) => {
+  try {
+    const content = logger.readLogFile();
+    const lines = content.split("\n").filter((line) => line.trim());
 
-app.get(
-  "/logs/:filename",
-  (req, res) => {
-    try {
-      const { filename } = req.params;
-      const content = logger.readSpecificLogFile(filename);
-      const lines = content.split('\n').filter(line => line.trim());
-      
-      // Support pagination
-      const page = parseInt(req.query.page as string) || 1;
-      const limit = parseInt(req.query.limit as string) || 50;
-      const startIndex = (page - 1) * limit;
-      const endIndex = startIndex + limit;
-      
-      const paginatedLines = lines.slice(startIndex, endIndex);
-      const totalLines = lines.length;
-      const totalPages = Math.ceil(totalLines / limit);
-      
-      res.json({
-        success: true,
-        filename,
-        content: paginatedLines.join('\n'),
-        pagination: {
-          page,
-          limit,
-          totalLines,
-          totalPages,
-          hasNext: page < totalPages,
-          hasPrev: page > 1
-        }
-      });
-    } catch (error) {
-      logger.error("Error reading log file:", error);
-      res.status(500).json({
-        error: "Internal Server Error",
-        message: error instanceof Error ? error.message : String(error)
-      });
-    }
+    // Support pagination
+    const page = parseInt(req.query.page as string) || 1;
+    const limit = parseInt(req.query.limit as string) || 50;
+    const totalLines = lines.length;
+    const endIndex = totalLines;
+    const startIndex = Math.max(0, endIndex - limit);
+
+    const paginatedLines = lines.slice(startIndex, endIndex);
+    const totalPages = Math.ceil(totalLines / limit);
+
+    res.json({
+      success: true,
+      content: paginatedLines.join("\n"),
+      pagination: {
+        page,
+        limit,
+        totalLines,
+        totalPages,
+        hasNext: page < totalPages,
+        hasPrev: page > 1,
+      },
+      logFile: logger.getLogFilePath(),
+    });
+  } catch (error) {
+    logger.error("Error reading current log file:", error);
+    res.status(500).json({
+      error: "Internal Server Error",
+      message: error instanceof Error ? error.message : String(error),
+    });
   }
-);
+});
+
+app.get("/logs/:filename", (req, res) => {
+  try {
+    const { filename } = req.params;
+    const content = logger.readSpecificLogFile(filename);
+    const lines = content.split("\n").filter((line) => line.trim());
+
+    // Support pagination
+    const page = parseInt(req.query.page as string) || 1;
+    const limit = parseInt(req.query.limit as string) || 50;
+    const startIndex = (page - 1) * limit;
+    const endIndex = startIndex + limit;
+
+    const paginatedLines = lines.slice(startIndex, endIndex);
+    const totalLines = lines.length;
+    const totalPages = Math.ceil(totalLines / limit);
+
+    res.json({
+      success: true,
+      filename,
+      content: paginatedLines.join("\n"),
+      pagination: {
+        page,
+        limit,
+        totalLines,
+        totalPages,
+        hasNext: page < totalPages,
+        hasPrev: page > 1,
+      },
+    });
+  } catch (error) {
+    logger.error("Error reading log file:", error);
+    res.status(500).json({
+      error: "Internal Server Error",
+      message: error instanceof Error ? error.message : String(error),
+    });
+  }
+});
 
 app.delete(
   "/logs/cleanup",
@@ -1300,20 +1328,20 @@ app.delete(
     try {
       const daysToKeep = parseInt(req.query.days as string) || 7;
       logger.clearOldLogs(daysToKeep);
-      
+
       res.json({
         success: true,
         message: `Cleaned up log files older than ${daysToKeep} days`,
-        daysToKeep
+        daysToKeep,
       });
     } catch (error) {
       logger.error("Error cleaning up logs:", error);
       res.status(500).json({
         error: "Internal Server Error",
-        message: error instanceof Error ? error.message : String(error)
+        message: error instanceof Error ? error.message : String(error),
       });
     }
-  }
+  },
 );
 
 app.post(
@@ -1323,39 +1351,39 @@ app.post(
   express.json(),
   (req, res) => {
     try {
-      const { level = 'info', message = 'Test log message' } = req.body;
-      
+      const { level = "info", message = "Test log message" } = req.body;
+
       switch (level) {
-        case 'info':
+        case "info":
           logger.info(message);
           break;
-        case 'warn':
+        case "warn":
           logger.warn(message);
           break;
-        case 'error':
+        case "error":
           logger.error(message);
           break;
-        case 'debug':
+        case "debug":
           logger.debug(message);
           break;
         default:
           logger.info(message);
       }
-      
+
       res.json({
         success: true,
         message: `Test log message written with level: ${level}`,
         level,
-        logFile: logger.getLogFilePath()
+        logFile: logger.getLogFilePath(),
       });
     } catch (error) {
       logger.error("Error writing test log:", error);
       res.status(500).json({
         error: "Internal Server Error",
-        message: error instanceof Error ? error.message : String(error)
+        message: error instanceof Error ? error.message : String(error),
       });
     }
-  }
+  },
 );
 
 const PORT = parseInt(

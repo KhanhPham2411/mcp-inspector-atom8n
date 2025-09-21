@@ -171,7 +171,17 @@ The MCP Inspector includes a proxy server that can run and communicate with loca
 
 #### Authentication
 
-The MCP Inspector proxy server requires authentication by default. When starting the server, a random session token is generated and printed to the console:
+The MCP Inspector proxy server has authentication disabled by default for convenience. When starting the server, you'll see a warning message indicating that authentication is disabled.
+
+**⚠️ WARNING: Authentication is disabled by default. This is not recommended for production use.**
+
+If you need to enable authentication (RECOMMENDED for production), you can set the `DANGEROUSLY_OMIT_AUTH` environment variable to `false`:
+
+```bash
+DANGEROUSLY_OMIT_AUTH=false npm start
+```
+
+When authentication is enabled, a random session token is generated and printed to the console:
 
 ```
 🔑 Session token: 3a1c267fad21f7150b7d624c160b7f09b0b8c4f623c7107bbf13378f051538d4
@@ -192,17 +202,13 @@ This token must be included as a Bearer token in the Authorization header for al
 
 The token will be saved in your browser's local storage for future use.
 
-If you need to disable authentication (NOT RECOMMENDED), you can set the `DANGEROUSLY_OMIT_AUTH` environment variable:
-
-```bash
-DANGEROUSLY_OMIT_AUTH=true npm start
-```
-
 ---
 
 **🚨 WARNING 🚨**
 
-Disabling authentication with `DANGEROUSLY_OMIT_AUTH` is incredibly dangerous! Disabling auth leaves your machine open to attack not just when exposed to the public internet, but also **via your web browser**. Meaning, visiting a malicious website OR viewing a malicious advertizement could allow an attacker to remotely compromise your computer. Do not disable this feature unless you truly understand the risks.
+Authentication is disabled by default for convenience, but this is incredibly dangerous! Disabling auth leaves your machine open to attack not just when exposed to the public internet, but also **via your web browser**. Meaning, visiting a malicious website OR viewing a malicious advertizement could allow an attacker to remotely compromise your computer.
+
+**For production use, always enable authentication by setting `DANGEROUSLY_OMIT_AUTH=false`.**
 
 Read more about the risks of this vulnerability on Oligo's blog: [Critical RCE Vulnerability in Anthropic MCP Inspector - CVE-2025-49596](https://www.oligo.security/blog/critical-rce-vulnerability-in-anthropic-mcp-inspector-cve-2025-49596)
 

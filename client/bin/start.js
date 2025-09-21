@@ -277,7 +277,7 @@ async function main() {
   // Use provided token from environment or generate a new one
   const sessionToken =
     process.env.MCP_PROXY_AUTH_TOKEN || randomBytes(32).toString("hex");
-  const authDisabled = !!process.env.DANGEROUSLY_OMIT_AUTH;
+  const authDisabled = process.env.DANGEROUSLY_OMIT_AUTH !== "false";
 
   const abort = new AbortController();
 
