@@ -45,10 +45,10 @@ const host = process.env.HOST || "localhost";
 server.on("listening", () => {
   const url = process.env.INSPECTOR_URL || `http://${host}:${port}`;
   console.log(`\n🚀 MCP Inspector is up and running at:\n   ${url}\n`);
-  if (process.env.MCP_AUTO_OPEN_ENABLED !== "false") {
-    console.log(`🌐 Opening browser...`);
-    open(url);
-  }
+  // if (process.env.MCP_AUTO_OPEN_ENABLED !== "false") {
+  //   console.log(`🌐 Opening browser...`);
+  //   open(url);
+  // }
 });
 server.on("error", (err) => {
   if (err.message.includes(`EADDRINUSE`)) {

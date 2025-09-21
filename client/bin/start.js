@@ -158,10 +158,10 @@ async function startDevClient(clientOptions) {
   // Give vite time to start before opening or logging the URL
   setTimeout(() => {
     console.log(`\n🚀 MCP Inspector is up and running at:\n   ${url}\n`);
-    if (process.env.MCP_AUTO_OPEN_ENABLED !== "false") {
-      console.log("🌐 Opening browser...");
-      open(url);
-    }
+    // if (process.env.MCP_AUTO_OPEN_ENABLED !== "false") {
+    //   console.log("🌐 Opening browser...");
+    //   open(url);
+    // }
   }, 3000);
 
   await new Promise((resolve) => {
