@@ -6,6 +6,10 @@ import { Button } from "@/components/ui/button";
 import { useToast } from "@/lib/hooks/useToast";
 import { getDataType, tryParseJson } from "@/utils/jsonUtils";
 import useCopy from "@/lib/hooks/useCopy";
+import {
+  copyToClipboard,
+  getClipboardErrorMessage,
+} from "@/utils/clipboardUtils";
 
 interface JsonViewProps {
   data: unknown;
@@ -36,22 +40,36 @@ const JsonView = memo(
         : data;
     }, [data]);
 
-    const handleCopy = useCallback(() => {
+    const handleCopy = useCallback(async () => {
       try {
-        navigator.clipboard.writeText(
+        const textToCopy =
           typeof normalizedData === "string"
             ? normalizedData
-            : JSON.stringify(normalizedData, null, 2),
-        );
-        setCopied(true);
+            : JSON.stringify(normalizedData, null, 2);
+
+        const result = await copyToClipboard(textToCopy);
+
+        if (result.success) {
+          setCopied(true);
+        } else {
+          toast({
+            title: "Error",
+            description: getClipboardErrorMessage(
+              result.error || "Unknown error",
+            ),
+            variant: "destructive",
+          });
+        }
       } catch (error) {
         toast({
           title: "Error",
-          description: `There was an error coping result into the clipboard: ${error instanceof Error ? error.message : String(error)}`,
+          description: getClipboardErrorMessage(
+            error instanceof Error ? error.message : String(error),
+          ),
           variant: "destructive",
         });
       }
-    }, [toast, normalizedData]);
+    }, [toast, normalizedData, setCopied]);
 
     return (
       <div className={clsx("p-4 border rounded relative", className)}>

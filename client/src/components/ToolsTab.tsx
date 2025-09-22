@@ -32,6 +32,10 @@ import JsonView from "./JsonView";
 import ToolResults from "./ToolResults";
 import { useToast } from "@/lib/hooks/useToast";
 import useCopy from "@/lib/hooks/useCopy";
+import {
+  copyToClipboard,
+  getClipboardErrorMessage,
+} from "@/utils/clipboardUtils";
 
 // Type guard to safely detect the optional _meta field without using `any`
 const hasMeta = (tool: Tool): tool is Tool & { _meta: unknown } =>
@@ -87,10 +91,10 @@ const ToolsTab = ({
 
   const generateCurlCommand = () => {
     if (!selectedTool) return "";
-    
+
     const serverName = currentServerName || "default-server";
     const proxyUrl = "http://localhost:6277";
-    
+
     const curlCommand = `curl -X POST ${proxyUrl}/execute-tool \\
   -H "Origin: http://localhost:6274" \\
   -H "Content-Type: application/json" \\
@@ -106,16 +110,29 @@ const ToolsTab = ({
   const handleCopyCurl = async () => {
     try {
       const curlCommand = generateCurlCommand();
-      await navigator.clipboard.writeText(curlCommand);
-      setCurlCopied(true);
-      toast({
-        title: "Success",
-        description: "cURL command copied to clipboard",
-      });
+      const result = await copyToClipboard(curlCommand);
+
+      if (result.success) {
+        setCurlCopied(true);
+        toast({
+          title: "Success",
+          description: "cURL command copied to clipboard",
+        });
+      } else {
+        toast({
+          title: "Error",
+          description: getClipboardErrorMessage(
+            result.error || "Unknown error",
+          ),
+          variant: "destructive",
+        });
+      }
     } catch (error) {
       toast({
         title: "Error",
-        description: `Failed to copy cURL command: ${error instanceof Error ? error.message : String(error)}`,
+        description: getClipboardErrorMessage(
+          error instanceof Error ? error.message : String(error),
+        ),
         variant: "destructive",
       });
     }
@@ -369,14 +386,29 @@ const ToolsTab = ({
                   <Button
                     onClick={async () => {
                       try {
-                        navigator.clipboard.writeText(
+                        const result = await copyToClipboard(
                           JSON.stringify(params, null, 2),
                         );
-                        setCopied(true);
+
+                        if (result.success) {
+                          setCopied(true);
+                        } else {
+                          toast({
+                            title: "Error",
+                            description: getClipboardErrorMessage(
+                              result.error || "Unknown error",
+                            ),
+                            variant: "destructive",
+                          });
+                        }
                       } catch (error) {
                         toast({
                           title: "Error",
-                          description: `There was an error copying input to the clipboard: ${error instanceof Error ? error.message : String(error)}`,
+                          description: getClipboardErrorMessage(
+                            error instanceof Error
+                              ? error.message
+                              : String(error),
+                          ),
                           variant: "destructive",
                         });
                       }
@@ -389,10 +421,7 @@ const ToolsTab = ({
                     )}
                     Copy Input
                   </Button>
-                  <Button
-                    onClick={handleCopyCurl}
-                    variant="outline"
-                  >
+                  <Button onClick={handleCopyCurl} variant="outline">
                     {curlCopied ? (
                       <CheckCheck className="h-4 w-4 mr-2 dark:text-green-700 text-green-600" />
                     ) : (

@@ -7,6 +7,10 @@ import { generateDefaultValue } from "@/utils/schemaUtils";
 import type { JsonValue, JsonSchemaType } from "@/utils/jsonUtils";
 import { useToast } from "@/lib/hooks/useToast";
 import { CheckCheck, Copy } from "lucide-react";
+import {
+  copyToClipboard,
+  getClipboardErrorMessage,
+} from "@/utils/clipboardUtils";
 
 interface DynamicJsonFormProps {
   schema: JsonSchemaType;
@@ -511,12 +515,13 @@ const DynamicJsonForm = ({
     }
   }, [shouldUseJsonMode, isJsonMode]);
 
-  const handleCopyJson = useCallback(() => {
-    const copyToClipboard = async () => {
-      try {
-        await navigator.clipboard.writeText(
-          JSON.stringify(value, null, 2) ?? "[]",
-        );
+  const handleCopyJson = useCallback(async () => {
+    try {
+      const result = await copyToClipboard(
+        JSON.stringify(value, null, 2) ?? "[]",
+      );
+
+      if (result.success) {
         setCopiedJson(true);
 
         toast({
@@ -528,17 +533,25 @@ const DynamicJsonForm = ({
         setTimeout(() => {
           setCopiedJson(false);
         }, 2000);
-      } catch (error) {
+      } else {
         toast({
           title: "Error",
-          description: `Failed to copy JSON: ${error instanceof Error ? error.message : String(error)}`,
+          description: getClipboardErrorMessage(
+            result.error || "Unknown error",
+          ),
           variant: "destructive",
         });
       }
-    };
-
-    copyToClipboard();
-  }, [toast, value]);
+    } catch (error) {
+      toast({
+        title: "Error",
+        description: getClipboardErrorMessage(
+          error instanceof Error ? error.message : String(error),
+        ),
+        variant: "destructive",
+      });
+    }
+  }, [toast, value, setCopiedJson]);
 
   return (
     <div className="space-y-4">
