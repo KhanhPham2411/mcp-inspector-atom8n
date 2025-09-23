@@ -168,21 +168,36 @@ const originValidationMiddleware = (
 ) => {
   const origin = req.headers.origin;
 
-  // Default origins based on CLIENT_PORT or use environment variable
-  const clientPort = process.env.CLIENT_PORT || "6274";
-  const defaultOrigin = `http://localhost:${clientPort}`;
-  const allowedOrigins = process.env.ALLOWED_ORIGINS?.split(",") || [
-    defaultOrigin,
-  ];
-
-  if (origin && !allowedOrigins.includes(origin)) {
-    console.error(`Invalid origin: ${origin}`);
-    res.status(403).json({
-      error: "Forbidden - invalid origin",
-      message:
-        "Request blocked to prevent DNS rebinding attacks. Configure allowed origins via environment variable.",
-    });
+  // If no origin header, allow the request (for same-origin requests)
+  if (!origin) {
+    next();
     return;
+  }
+
+  // Check if ALLOWED_ORIGINS is explicitly set
+  if (process.env.ALLOWED_ORIGINS) {
+    const allowedOrigins = process.env.ALLOWED_ORIGINS.split(",");
+    if (!allowedOrigins.includes(origin)) {
+      console.error(`Invalid origin: ${origin}`);
+      res.status(403).json({
+        error: "Forbidden - invalid origin",
+        message:
+          "Request blocked to prevent DNS rebinding attacks. Configure allowed origins via environment variable.",
+      });
+      return;
+    }
+  } else {
+    // Default behavior: allow any localhost origin (with any port)
+    const localhostRegex = /^https?:\/\/(localhost|127\.0\.0\.1|::1)(:\d+)?$/;
+    if (!localhostRegex.test(origin)) {
+      console.error(`Invalid origin: ${origin}`);
+      res.status(403).json({
+        error: "Forbidden - invalid origin",
+        message:
+          "Request blocked to prevent DNS rebinding attacks. Only localhost origins are allowed by default.",
+      });
+      return;
+    }
   }
   next();
 };
@@ -692,12 +707,10 @@ app.get(
     try {
       const targetUrl = (req.query.url as string) || "";
       if (!targetUrl) {
-        res
-          .status(400)
-          .json({
-            error: "Bad Request",
-            message: "Missing 'url' query parameter",
-          });
+        res.status(400).json({
+          error: "Bad Request",
+          message: "Missing 'url' query parameter",
+        });
         return;
       }
 
@@ -768,12 +781,10 @@ app.get(
             res.json(json);
             return;
           } catch {
-            res
-              .status(415)
-              .json({
-                error: "Unsupported Media Type",
-                message: "Upstream did not return JSON",
-              });
+            res.status(415).json({
+              error: "Unsupported Media Type",
+              message: "Upstream did not return JSON",
+            });
             return;
           }
         }
@@ -784,12 +795,10 @@ app.get(
       }
     } catch (error: any) {
       console.error("Error in /fetch-json:", error);
-      res
-        .status(500)
-        .json({
-          error: "Internal Server Error",
-          message: error?.message || String(error),
-        });
+      res.status(500).json({
+        error: "Internal Server Error",
+        message: error?.message || String(error),
+      });
     }
   },
 );
