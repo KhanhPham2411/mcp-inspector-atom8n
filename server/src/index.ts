@@ -1261,7 +1261,7 @@ app.get("/logs/current", (req, res) => {
 
     // Support pagination
     const page = parseInt(req.query.page as string) || 1;
-    const limit = parseInt(req.query.limit as string) || 50;
+    const limit = parseInt(req.query.limit as string) || 100;
     const totalLines = lines.length;
     const endIndex = totalLines;
     const startIndex = Math.max(0, endIndex - limit);
