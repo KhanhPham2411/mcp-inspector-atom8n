@@ -174,31 +174,32 @@ const originValidationMiddleware = (
     return;
   }
 
-  // Check if ALLOWED_ORIGINS is explicitly set
-  if (process.env.ALLOWED_ORIGINS) {
-    const allowedOrigins = process.env.ALLOWED_ORIGINS.split(",");
-    if (!allowedOrigins.includes(origin)) {
-      console.error(`Invalid origin: ${origin}`);
-      res.status(403).json({
-        error: "Forbidden - invalid origin",
-        message:
-          "Request blocked to prevent DNS rebinding attacks. Configure allowed origins via environment variable.",
-      });
-      return;
-    }
-  } else {
-    // Default behavior: allow any localhost origin (with any port)
-    const localhostRegex = /^https?:\/\/(localhost|127\.0\.0\.1|::1)(:\d+)?$/;
-    if (!localhostRegex.test(origin)) {
-      console.error(`Invalid origin: ${origin}`);
-      res.status(403).json({
-        error: "Forbidden - invalid origin",
-        message:
-          "Request blocked to prevent DNS rebinding attacks. Only localhost origins are allowed by default.",
-      });
-      return;
-    }
-  }
+  // // Check if ALLOWED_ORIGINS is explicitly set
+  // if (process.env.ALLOWED_ORIGINS) {
+  //   const allowedOrigins = process.env.ALLOWED_ORIGINS.split(",");
+  //   if (!allowedOrigins.includes(origin)) {
+  //     console.error(`Invalid origin: ${origin}`);
+  //     res.status(403).json({
+  //       error: "Forbidden - invalid origin",
+  //       message:
+  //         "Request blocked to prevent DNS rebinding attacks. Configure allowed origins via environment variable.",
+  //     });
+  //     return;
+  //   }
+  // } else {
+  //   // Default behavior: allow any localhost origin (with any port)
+  //   const localhostRegex = /^https?:\/\/(localhost|127\.0\.0\.1|::1)(:\d+)?$/;
+  //   if (!localhostRegex.test(origin)) {
+  //     console.error(`Invalid origin: ${origin}`);
+  //     res.status(403).json({
+  //       error: "Forbidden - invalid origin",
+  //       message:
+  //         "Request blocked to prevent DNS rebinding attacks. Only localhost origins are allowed by default.",
+  //     });
+  //     return;
+  //   }
+  // }
+
   next();
 };
 
