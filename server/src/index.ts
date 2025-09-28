@@ -1298,14 +1298,14 @@ app.get("/logs/:filename", (req, res) => {
     const content = logger.readSpecificLogFile(filename);
     const lines = content.split("\n").filter((line) => line.trim());
 
-    // Support pagination
+    // Use the same pagination logic as /logs/current: always return the last N lines
     const page = parseInt(req.query.page as string) || 1;
-    const limit = parseInt(req.query.limit as string) || 50;
-    const startIndex = (page - 1) * limit;
-    const endIndex = startIndex + limit;
+    const limit = parseInt(req.query.limit as string) || 100;
+    const totalLines = lines.length;
+    const endIndex = totalLines;
+    const startIndex = Math.max(0, endIndex - limit);
 
     const paginatedLines = lines.slice(startIndex, endIndex);
-    const totalLines = lines.length;
     const totalPages = Math.ceil(totalLines / limit);
 
     res.json({
