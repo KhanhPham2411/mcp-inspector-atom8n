@@ -1355,7 +1355,7 @@ app.delete(
 );
 
 app.post(
-  "/logs/test",
+  "/logs/write",
   originValidationMiddleware,
   authMiddleware,
   express.json(),

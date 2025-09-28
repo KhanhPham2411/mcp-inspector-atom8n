@@ -1,7 +1,7 @@
 import { InspectorConfig } from "@/lib/configurationTypes";
 import { getMCPProxyAddress, getMCPProxyAuthToken } from "@/utils/configUtils";
 
-export type LogLevel = 'info' | 'warn' | 'error' | 'debug';
+export type LogLevel = "info" | "warn" | "error" | "debug";
 
 export interface LogEntry {
   level: LogLevel;
@@ -64,13 +64,13 @@ export class ServerLogUtils {
   private getApiConfig() {
     const proxyAddress = getMCPProxyAddress(this.config);
     const { token, header } = getMCPProxyAuthToken(this.config);
-    
+
     return {
       baseUrl: proxyAddress,
       headers: {
         [header]: `Bearer ${token}`,
-        'Content-Type': 'application/json'
-      }
+        "Content-Type": "application/json",
+      },
     };
   }
 
@@ -79,15 +79,15 @@ export class ServerLogUtils {
    */
   async writeLog(entry: LogEntry): Promise<LogTestResponse> {
     const { baseUrl, headers } = this.getApiConfig();
-    
-    const response = await fetch(`${baseUrl}/logs/test`, {
-      method: 'POST',
+
+    const response = await fetch(`${baseUrl}/logs/write`, {
+      method: "POST",
       headers,
       body: JSON.stringify({
         level: entry.level,
         message: entry.message,
-        ...(entry.metadata && { metadata: entry.metadata })
-      })
+        ...(entry.metadata && { metadata: entry.metadata }),
+      }),
     });
 
     if (!response.ok) {
@@ -102,9 +102,9 @@ export class ServerLogUtils {
    */
   async getLogFiles(): Promise<LogFilesResponse> {
     const { baseUrl, headers } = this.getApiConfig();
-    
+
     const response = await fetch(`${baseUrl}/logs`, {
-      headers
+      headers,
     });
 
     if (!response.ok) {
@@ -117,15 +117,23 @@ export class ServerLogUtils {
   /**
    * Get current log content with pagination
    */
-  async getCurrentLogContent(page: number = 1, limit: number = 50): Promise<LogContent> {
+  async getCurrentLogContent(
+    page: number = 1,
+    limit: number = 50,
+  ): Promise<LogContent> {
     const { baseUrl, headers } = this.getApiConfig();
-    
-    const response = await fetch(`${baseUrl}/logs/current?page=${page}&limit=${limit}`, {
-      headers
-    });
+
+    const response = await fetch(
+      `${baseUrl}/logs/current?page=${page}&limit=${limit}`,
+      {
+        headers,
+      },
+    );
 
     if (!response.ok) {
-      throw new Error(`Failed to fetch current log content: ${response.statusText}`);
+      throw new Error(
+        `Failed to fetch current log content: ${response.statusText}`,
+      );
     }
 
     return await response.json();
@@ -134,15 +142,24 @@ export class ServerLogUtils {
   /**
    * Get specific log file content with pagination
    */
-  async getLogFileContent(filename: string, page: number = 1, limit: number = 50): Promise<LogContent> {
+  async getLogFileContent(
+    filename: string,
+    page: number = 1,
+    limit: number = 50,
+  ): Promise<LogContent> {
     const { baseUrl, headers } = this.getApiConfig();
-    
-    const response = await fetch(`${baseUrl}/logs/${filename}?page=${page}&limit=${limit}`, {
-      headers
-    });
+
+    const response = await fetch(
+      `${baseUrl}/logs/${filename}?page=${page}&limit=${limit}`,
+      {
+        headers,
+      },
+    );
 
     if (!response.ok) {
-      throw new Error(`Failed to fetch log file content: ${response.statusText}`);
+      throw new Error(
+        `Failed to fetch log file content: ${response.statusText}`,
+      );
     }
 
     return await response.json();
@@ -153,10 +170,10 @@ export class ServerLogUtils {
    */
   async cleanupLogs(daysToKeep: number = 7): Promise<LogCleanupResponse> {
     const { baseUrl, headers } = this.getApiConfig();
-    
+
     const response = await fetch(`${baseUrl}/logs/cleanup?days=${daysToKeep}`, {
-      method: 'DELETE',
-      headers
+      method: "DELETE",
+      headers,
     });
 
     if (!response.ok) {
@@ -169,9 +186,12 @@ export class ServerLogUtils {
   /**
    * Write a simple log message with info level
    */
-  async logInfo(message: string, metadata?: Record<string, any>): Promise<void> {
+  async logInfo(
+    message: string,
+    metadata?: Record<string, any>,
+  ): Promise<void> {
     try {
-      await this.writeLog({ level: 'info', message, metadata });
+      await this.writeLog({ level: "info", message, metadata });
     } catch (error) {
       // Silent fail for logging operations
     }
@@ -180,9 +200,12 @@ export class ServerLogUtils {
   /**
    * Write a warning log message
    */
-  async logWarning(message: string, metadata?: Record<string, any>): Promise<void> {
+  async logWarning(
+    message: string,
+    metadata?: Record<string, any>,
+  ): Promise<void> {
     try {
-      await this.writeLog({ level: 'warn', message, metadata });
+      await this.writeLog({ level: "warn", message, metadata });
     } catch (error) {
       // Silent fail for logging operations
     }
@@ -191,9 +214,12 @@ export class ServerLogUtils {
   /**
    * Write an error log message
    */
-  async logError(message: string, metadata?: Record<string, any>): Promise<void> {
+  async logError(
+    message: string,
+    metadata?: Record<string, any>,
+  ): Promise<void> {
     try {
-      await this.writeLog({ level: 'error', message, metadata });
+      await this.writeLog({ level: "error", message, metadata });
     } catch (error) {
       // Silent fail for logging operations
     }
@@ -202,9 +228,12 @@ export class ServerLogUtils {
   /**
    * Write a debug log message
    */
-  async logDebug(message: string, metadata?: Record<string, any>): Promise<void> {
+  async logDebug(
+    message: string,
+    metadata?: Record<string, any>,
+  ): Promise<void> {
     try {
-      await this.writeLog({ level: 'debug', message, metadata });
+      await this.writeLog({ level: "debug", message, metadata });
     } catch (error) {
       // Silent fail for logging operations
     }
@@ -214,14 +243,19 @@ export class ServerLogUtils {
 /**
  * Create a new ServerLogUtils instance
  */
-export const createServerLogUtils = (config: InspectorConfig): ServerLogUtils => {
+export const createServerLogUtils = (
+  config: InspectorConfig,
+): ServerLogUtils => {
   return new ServerLogUtils(config);
 };
 
 /**
  * Convenience function to write a log entry without creating a class instance
  */
-export const writeLogEntry = async (config: InspectorConfig, entry: LogEntry): Promise<LogTestResponse> => {
+export const writeLogEntry = async (
+  config: InspectorConfig,
+  entry: LogEntry,
+): Promise<LogTestResponse> => {
   const utils = createServerLogUtils(config);
   return await utils.writeLog(entry);
 };
@@ -229,7 +263,11 @@ export const writeLogEntry = async (config: InspectorConfig, entry: LogEntry): P
 /**
  * Convenience function to write a simple info log
  */
-export const logInfo = async (config: InspectorConfig, message: string, metadata?: Record<string, any>): Promise<void> => {
+export const logInfo = async (
+  config: InspectorConfig,
+  message: string,
+  metadata?: Record<string, any>,
+): Promise<void> => {
   const utils = createServerLogUtils(config);
   return await utils.logInfo(message, metadata);
 };
@@ -237,7 +275,11 @@ export const logInfo = async (config: InspectorConfig, message: string, metadata
 /**
  * Convenience function to write a warning log
  */
-export const logWarning = async (config: InspectorConfig, message: string, metadata?: Record<string, any>): Promise<void> => {
+export const logWarning = async (
+  config: InspectorConfig,
+  message: string,
+  metadata?: Record<string, any>,
+): Promise<void> => {
   const utils = createServerLogUtils(config);
   return await utils.logWarning(message, metadata);
 };
@@ -245,7 +287,11 @@ export const logWarning = async (config: InspectorConfig, message: string, metad
 /**
  * Convenience function to write an error log
  */
-export const logError = async (config: InspectorConfig, message: string, metadata?: Record<string, any>): Promise<void> => {
+export const logError = async (
+  config: InspectorConfig,
+  message: string,
+  metadata?: Record<string, any>,
+): Promise<void> => {
   const utils = createServerLogUtils(config);
   return await utils.logError(message, metadata);
 };
@@ -253,7 +299,11 @@ export const logError = async (config: InspectorConfig, message: string, metadat
 /**
  * Convenience function to write a debug log
  */
-export const logDebug = async (config: InspectorConfig, message: string, metadata?: Record<string, any>): Promise<void> => {
+export const logDebug = async (
+  config: InspectorConfig,
+  message: string,
+  metadata?: Record<string, any>,
+): Promise<void> => {
   const utils = createServerLogUtils(config);
   return await utils.logDebug(message, metadata);
 };
