@@ -702,21 +702,79 @@ app.get(
         transportToServer: serverTransport,
       });
     } catch (error) {
+      // Automatic fallback: if SSE returns 400, switch to StreamableHTTP
+      if (
+        error instanceof SseError &&
+        (error.code === 400 ||
+          (typeof error.message === "string" &&
+            error.message.includes("Non-200 status code (400)")))
+      ) {
+        try {
+          console.warn(
+            "SSE returned 400. Falling back to StreamableHTTP transport.",
+          );
+
+          const headers = getHttpHeaders(req);
+          headers["Accept"] = "text/event-stream, application/json";
+          const headerHolder = { headers };
+          const url = (req.query.url as string) || "";
+
+          const serverTransport = new StreamableHTTPClientTransport(
+            new URL(url),
+            {
+              fetch: createCustomFetch(headerHolder),
+            },
+          );
+          await serverTransport.start();
+
+          const proxyFullAddress = (req.query.proxyFullAddress as string) || "";
+          const prefix = proxyFullAddress || "";
+          const endpoint = `${prefix}/message`;
+
+          const webAppTransport = new SSEServerTransport(endpoint, res);
+          webAppTransports.set(webAppTransport.sessionId, webAppTransport);
+          sessionHeaderHolders.set(webAppTransport.sessionId, headerHolder);
+
+          await webAppTransport.start();
+
+          mcpProxy({
+            transportToClient: webAppTransport,
+            transportToServer: serverTransport,
+          });
+          return;
+        } catch (fallbackError) {
+          if (!res.headersSent) {
+            console.error(
+              "StreamableHTTP fallback failed in /sse route:",
+              fallbackError,
+            );
+            res.status(500).json(fallbackError);
+          }
+          return;
+        }
+      }
+      if (res.headersSent) {
+        console.error("Error in /sse route after headers sent:", error);
+        return;
+      }
       if (error instanceof SseError && error.code === 401) {
         console.error(
           "Received 401 Unauthorized from MCP server. Authentication failure.",
         );
         res.status(401).json(error);
         return;
-      } else if (error instanceof SseError && error.code === 404) {
+      }
+      if (error instanceof SseError && error.code === 404) {
         console.error(
           "Received 404 not found from MCP server. Does the MCP server support SSE?",
         );
         res.status(404).json(error);
         return;
-      } else if (JSON.stringify(error).includes("ECONNREFUSED")) {
+      }
+      if (JSON.stringify(error).includes("ECONNREFUSED")) {
         console.error("Connection refused. Is the MCP server running?");
         res.status(500).json(error);
+        return;
       }
       console.error("Error in /sse route:", error);
       res.status(500).json(error);
