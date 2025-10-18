@@ -46,6 +46,8 @@ describe("Sidebar", () => {
     setSseUrl: jest.fn(),
     oauthClientId: "",
     setOauthClientId: jest.fn(),
+    oauthClientSecret: "",
+    setOauthClientSecret: jest.fn(),
     oauthScope: "",
     setOauthScope: jest.fn(),
     env: {},
@@ -61,6 +63,8 @@ describe("Sidebar", () => {
     loggingSupported: true,
     config: DEFAULT_INSPECTOR_CONFIG,
     setConfig: jest.fn(),
+    connectionType: "proxy" as const,
+    setConnectionType: jest.fn(),
   };
 
   const renderSidebar = (props = {}) => {

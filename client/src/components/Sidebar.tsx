@@ -67,6 +67,8 @@ interface SidebarProps {
   setCustomHeaders: (headers: CustomHeadersType) => void;
   oauthClientId: string;
   setOauthClientId: (id: string) => void;
+  oauthClientSecret: string;
+  setOauthClientSecret: (secret: string) => void;
   oauthScope: string;
   setOauthScope: (scope: string) => void;
   onConnect: () => void;
@@ -77,6 +79,8 @@ interface SidebarProps {
   config: InspectorConfig;
   setConfig: (config: InspectorConfig) => void;
   onServersChange?: (servers: Record<string, any>) => void;
+  connectionType: "direct" | "proxy";
+  setConnectionType: (type: "direct" | "proxy") => void;
 }
 
 const Sidebar = ({
@@ -97,6 +101,8 @@ const Sidebar = ({
   setCustomHeaders,
   oauthClientId,
   setOauthClientId,
+  oauthClientSecret,
+  setOauthClientSecret,
   oauthScope,
   setOauthScope,
   onConnect,
@@ -107,6 +113,8 @@ const Sidebar = ({
   config,
   setConfig,
   onServersChange,
+  connectionType,
+  setConnectionType,
 }: SidebarProps) => {
   const [theme, setTheme] = useTheme();
   const [activeTab, setActiveTab] = useState<"file" | "manual">("file");
@@ -114,6 +122,7 @@ const Sidebar = ({
   const [showAuthConfig, setShowAuthConfig] = useState(false);
   const [showConfig, setShowConfig] = useState(false);
   const [shownEnvVars, setShownEnvVars] = useState<Set<string>>(new Set());
+  const [showClientSecret, setShowClientSecret] = useState(false);
   const [copiedServerEntry, setCopiedServerEntry] = useState(false);
   const [copiedServerFile, setCopiedServerFile] = useState(false);
   const [loadedServers, setLoadedServers] = useState<Record<string, any>>({});
@@ -121,6 +130,8 @@ const Sidebar = ({
   const [isLoadingDefault, setIsLoadingDefault] = useState<boolean>(false);
   const { toast } = useToast();
 
+  const connectionTypeTip =
+    "Connect to server directly (requires CORS config on server) or via MCP Inspector Proxy";
   // Reusable error reporter for copy actions
   const reportError = useCallback(
     (error: unknown) => {

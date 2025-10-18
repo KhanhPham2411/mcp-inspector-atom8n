@@ -1,4 +1,11 @@
-import { useState, useEffect, useCallback, useRef } from "react";
+import {
+  useState,
+  useEffect,
+  useCallback,
+  useRef,
+  forwardRef,
+  useImperativeHandle,
+} from "react";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import JsonEditor from "./JsonEditor";
@@ -17,6 +24,10 @@ interface DynamicJsonFormProps {
   value: JsonValue;
   onChange: (value: JsonValue) => void;
   maxDepth?: number;
+}
+
+export interface DynamicJsonFormRef {
+  validateJson: () => { isValid: boolean; error: string | null };
 }
 
 const isTypeSupported = (
@@ -67,94 +78,120 @@ const getArrayItemDefault = (schema: JsonSchemaType): JsonValue => {
   }
 };
 
-const DynamicJsonForm = ({
-  schema,
-  value,
-  onChange,
-  maxDepth = 3,
-}: DynamicJsonFormProps) => {
-  const isOnlyJSON = !isSimpleObject(schema);
-  const [isJsonMode, setIsJsonMode] = useState(isOnlyJSON);
-  const [jsonError, setJsonError] = useState<string>();
-  const [copiedJson, setCopiedJson] = useState<boolean>(false);
-  const { toast } = useToast();
+const DynamicJsonForm = forwardRef<DynamicJsonFormRef, DynamicJsonFormProps>(
+  ({ schema, value, onChange, maxDepth = 3 }, ref) => {
+    const isOnlyJSON = !isSimpleObject(schema);
+    const [isJsonMode, setIsJsonMode] = useState(isOnlyJSON);
+    const [jsonError, setJsonError] = useState<string>();
+    const [copiedJson, setCopiedJson] = useState<boolean>(false);
+    const { toast } = useToast();
 
-  // Store the raw JSON string to allow immediate feedback during typing
-  // while deferring parsing until the user stops typing
-  const [rawJsonValue, setRawJsonValue] = useState<string>(
-    JSON.stringify(value ?? generateDefaultValue(schema), null, 2),
-  );
+    // Store the raw JSON string to allow immediate feedback during typing
+    // while deferring parsing until the user stops typing
+    const [rawJsonValue, setRawJsonValue] = useState<string>(
+      JSON.stringify(value ?? generateDefaultValue(schema), null, 2),
+    );
 
-  // Use a ref to manage debouncing timeouts to avoid parsing JSON
-  // on every keystroke which would be inefficient and error-prone
-  const timeoutRef = useRef<ReturnType<typeof setTimeout>>();
+    // Use a ref to manage debouncing timeouts to avoid parsing JSON
+    // on every keystroke which would be inefficient and error-prone
+    const timeoutRef = useRef<ReturnType<typeof setTimeout>>();
 
-  // Debounce JSON parsing and parent updates to handle typing gracefully
-  const debouncedUpdateParent = useCallback(
-    (jsonString: string) => {
-      // Clear any existing timeout
-      if (timeoutRef.current) {
-        clearTimeout(timeoutRef.current);
-      }
-
-      // Set a new timeout
-      timeoutRef.current = setTimeout(() => {
-        try {
-          const parsed = JSON.parse(jsonString);
-          onChange(parsed);
-          setJsonError(undefined);
-        } catch {
-          // Don't set error during normal typing
+    // Debounce JSON parsing and parent updates to handle typing gracefully
+    const debouncedUpdateParent = useCallback(
+      (jsonString: string) => {
+        // Clear any existing timeout
+        if (timeoutRef.current) {
+          clearTimeout(timeoutRef.current);
         }
-      }, 300);
-    },
-    [onChange, setJsonError],
-  );
 
-  // Update rawJsonValue when value prop changes
-  useEffect(() => {
-    if (!isJsonMode) {
-      setRawJsonValue(
-        JSON.stringify(value ?? generateDefaultValue(schema), null, 2),
-      );
-    }
-  }, [value, schema, isJsonMode]);
+        // Set a new timeout
+        timeoutRef.current = setTimeout(() => {
+          try {
+            const parsed = JSON.parse(jsonString);
+            onChange(parsed);
+            setJsonError(undefined);
+          } catch (err) {
+            // For invalid JSON, set error and reset to default if it's clearly malformed
+            const errorMessage =
+              err instanceof Error ? err.message : "Invalid JSON";
+            setJsonError(errorMessage);
 
-  const handleSwitchToFormMode = () => {
-    if (isJsonMode) {
-      // When switching to Form mode, ensure we have valid JSON
+            // Reset to default for clearly invalid JSON (not just incomplete typing)
+            const trimmed = jsonString.trim();
+            if (trimmed.length > 5 && !trimmed.match(/^[\s[{]/)) {
+              onChange(generateDefaultValue(schema));
+            }
+          }
+        }, 300);
+      },
+      [onChange, setJsonError, schema],
+    );
+
+    // Update rawJsonValue when value prop changes
+    useEffect(() => {
+      if (!isJsonMode) {
+        setRawJsonValue(
+          JSON.stringify(value ?? generateDefaultValue(schema), null, 2),
+        );
+      }
+    }, [value, schema, isJsonMode]);
+
+    const handleSwitchToFormMode = () => {
+      if (isJsonMode) {
+        // When switching to Form mode, ensure we have valid JSON
+        try {
+          const parsed = JSON.parse(rawJsonValue);
+          // Update the parent component's state with the parsed value
+          onChange(parsed);
+          // Switch to form mode
+          setIsJsonMode(false);
+        } catch (err) {
+          setJsonError(err instanceof Error ? err.message : "Invalid JSON");
+        }
+      } else {
+        // Update raw JSON value when switching to JSON mode
+        setRawJsonValue(
+          JSON.stringify(value ?? generateDefaultValue(schema), null, 2),
+        );
+        setIsJsonMode(true);
+      }
+    };
+
+    const formatJson = () => {
       try {
-        const parsed = JSON.parse(rawJsonValue);
-        // Update the parent component's state with the parsed value
-        onChange(parsed);
-        // Switch to form mode
-        setIsJsonMode(false);
+        const jsonStr = rawJsonValue.trim();
+        if (!jsonStr) {
+          return;
+        }
+        const formatted = JSON.stringify(JSON.parse(jsonStr), null, 2);
+        setRawJsonValue(formatted);
+        debouncedUpdateParent(formatted);
+        setJsonError(undefined);
       } catch (err) {
         setJsonError(err instanceof Error ? err.message : "Invalid JSON");
       }
-    } else {
-      // Update raw JSON value when switching to JSON mode
-      setRawJsonValue(
-        JSON.stringify(value ?? generateDefaultValue(schema), null, 2),
-      );
-      setIsJsonMode(true);
-    }
-  };
+    };
 
-  const formatJson = () => {
-    try {
-      const jsonStr = rawJsonValue.trim();
-      if (!jsonStr) {
-        return;
+    const validateJson = () => {
+      if (!isJsonMode) return { isValid: true, error: null };
+      try {
+        const jsonStr = rawJsonValue.trim();
+        if (!jsonStr) return { isValid: true, error: null };
+        const parsed = JSON.parse(jsonStr);
+        // Clear any pending debounced update and immediately update parent
+        if (timeoutRef.current) {
+          clearTimeout(timeoutRef.current);
+        }
+        onChange(parsed);
+        setJsonError(undefined);
+        return { isValid: true, error: null };
+      } catch (err) {
+        const errorMessage =
+          err instanceof Error ? err.message : "Invalid JSON";
+        setJsonError(errorMessage);
+        return { isValid: false, error: errorMessage };
       }
-      const formatted = JSON.stringify(JSON.parse(jsonStr), null, 2);
-      setRawJsonValue(formatted);
-      debouncedUpdateParent(formatted);
-      setJsonError(undefined);
-    } catch (err) {
-      setJsonError(err instanceof Error ? err.message : "Invalid JSON");
-    }
-  };
+    };
 
   const renderFormFields = (
     propSchema: JsonSchemaType,
@@ -553,79 +590,98 @@ const DynamicJsonForm = ({
     }
   }, [toast, value, setCopiedJson]);
 
-  return (
-    <div className="space-y-4">
-      <div className="flex justify-end space-x-2">
-        {isJsonMode && (
-          <>
-            <Button
-              type="button"
-              variant="outline"
-              size="sm"
-              onClick={handleCopyJson}
-            >
-              {copiedJson ? (
-                <CheckCheck className="h-4 w-4 mr-2" />
-              ) : (
-                <Copy className="h-4 w-4 mr-2" />
-              )}
-              Copy JSON
-            </Button>
-            <Button
-              type="button"
-              variant="outline"
-              size="sm"
-              onClick={formatJson}
-            >
-              Format JSON
-            </Button>
-          </>
-        )}
+    useImperativeHandle(ref, () => ({
+      validateJson,
+    }));
 
-        {!isOnlyJSON && (
-          <Button variant="outline" size="sm" onClick={handleSwitchToFormMode}>
-            {isJsonMode ? "Switch to Form" : "Switch to JSON"}
-          </Button>
+
+    const shouldUseJsonMode =
+      schema.type === "object" &&
+      (!schema.properties || Object.keys(schema.properties).length === 0);
+
+    useEffect(() => {
+      if (shouldUseJsonMode && !isJsonMode) {
+        setIsJsonMode(true);
+      }
+    }, [shouldUseJsonMode, isJsonMode]);
+
+    return (
+      <div className="space-y-4">
+        <div className="flex justify-end space-x-2">
+          {isJsonMode && (
+            <>
+              <Button
+                type="button"
+                variant="outline"
+                size="sm"
+                onClick={handleCopyJson}
+              >
+                {copiedJson ? (
+                  <CheckCheck className="h-4 w-4 mr-2" />
+                ) : (
+                  <Copy className="h-4 w-4 mr-2" />
+                )}
+                Copy JSON
+              </Button>
+              <Button
+                type="button"
+                variant="outline"
+                size="sm"
+                onClick={formatJson}
+              >
+                Format JSON
+              </Button>
+            </>
+          )}
+          {!isOnlyJSON && (
+            <Button
+              variant="outline"
+              size="sm"
+              onClick={handleSwitchToFormMode}
+            >
+              {isJsonMode ? "Switch to Form" : "Switch to JSON"}
+            </Button>
+          )}
+        </div>
+
+        {isJsonMode ? (
+          <JsonEditor
+            value={rawJsonValue}
+            onChange={(newValue) => {
+              // Always update local state
+              setRawJsonValue(newValue);
+
+              // Use the debounced function to attempt parsing and updating parent
+              debouncedUpdateParent(newValue);
+            }}
+            error={jsonError}
+          />
+        ) : // If schema type is object but value is not an object or is empty, and we have actual JSON data,
+        // render a simple representation of the JSON data
+        schema.type === "object" &&
+          (typeof value !== "object" ||
+            value === null ||
+            Object.keys(value).length === 0) &&
+          rawJsonValue &&
+          rawJsonValue !== "{}" ? (
+          <div className="space-y-4 border rounded-md p-4">
+            <p className="text-sm text-gray-500">
+              Form view not available for this JSON structure. Using simplified
+              view:
+            </p>
+            <pre className="bg-gray-50 dark:bg-gray-800 dark:text-gray-100 p-4 rounded text-sm overflow-auto">
+              {rawJsonValue}
+            </pre>
+            <p className="text-sm text-gray-500">
+              Use JSON mode for full editing capabilities.
+            </p>
+          </div>
+        ) : (
+          renderFormFields(schema, value)
         )}
       </div>
-
-      {isJsonMode ? (
-        <JsonEditor
-          value={rawJsonValue}
-          onChange={(newValue) => {
-            // Always update local state
-            setRawJsonValue(newValue);
-
-            // Use the debounced function to attempt parsing and updating parent
-            debouncedUpdateParent(newValue);
-          }}
-          error={jsonError}
-        />
-      ) : // If schema type is object but value is not an object or is empty, and we have actual JSON data,
-      // render a simple representation of the JSON data
-      schema.type === "object" &&
-        (typeof value !== "object" ||
-          value === null ||
-          Object.keys(value).length === 0) &&
-        rawJsonValue &&
-        rawJsonValue !== "{}" ? (
-        <div className="space-y-4 border rounded-md p-4">
-          <p className="text-sm text-gray-500">
-            Form view not available for this JSON structure. Using simplified
-            view:
-          </p>
-          <pre className="bg-gray-50 dark:bg-gray-800 dark:text-gray-100 p-4 rounded text-sm overflow-auto">
-            {rawJsonValue}
-          </pre>
-          <p className="text-sm text-gray-500">
-            Use JSON mode for full editing capabilities.
-          </p>
-        </div>
-      ) : (
-        renderFormFields(schema, value)
-      )}
-    </div>
-  );
-};
+    );
+  },
+);
 
 export default DynamicJsonForm;
