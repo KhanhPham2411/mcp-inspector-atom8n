@@ -3,7 +3,8 @@ import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Textarea } from "@/components/ui/textarea";
 import { Switch } from "@/components/ui/switch";
-import { Plus, Trash2, Eye, EyeOff } from "lucide-react";
+import { Alert, AlertDescription } from "@/components/ui/alert";
+import { Plus, Trash2, Eye, EyeOff, AlertCircle } from "lucide-react";
 import {
   CustomHeaders as CustomHeadersType,
   CustomHeader,
@@ -25,6 +26,32 @@ const CustomHeaders = ({
   const [jsonValue, setJsonValue] = useState("");
   const [jsonError, setJsonError] = useState<string | null>(null);
   const [visibleValues, setVisibleValues] = useState<Set<number>>(new Set());
+
+  // Validation helper for Authorization headers
+  const isInvalidAuthHeader = (header: CustomHeader): boolean => {
+    if (!header.enabled) return false;
+    if (header.name.trim().toLowerCase() !== "authorization") return false;
+
+    const value = header.value.trim();
+    return (
+      value === "" ||
+      value.toLowerCase() === "bearer" ||
+      (value.toLowerCase().startsWith("bearer ") && value.length <= 7)
+    );
+  };
+
+  // Get validation errors for all headers
+  const getValidationErrors = (): string[] => {
+    const errors: string[] = [];
+    headers.forEach((header, index) => {
+      if (isInvalidAuthHeader(header)) {
+        errors.push(
+          `Header ${index + 1}: Authorization header is missing a token`,
+        );
+      }
+    });
+    return errors;
+  };
 
   const updateHeader = (
     index: number,
@@ -161,6 +188,30 @@ const CustomHeaders = ({
         </div>
       </div>
 
+      {(() => {
+        const validationErrors = getValidationErrors();
+        return (
+          validationErrors.length > 0 && (
+            <Alert variant="destructive">
+              <AlertCircle className="h-4 w-4" />
+              <AlertDescription>
+                <div className="space-y-1">
+                  {validationErrors.map((error, index) => (
+                    <div key={index} className="text-sm">
+                      {error}
+                    </div>
+                  ))}
+                  <div className="text-xs mt-2">
+                    Add a Bearer token (e.g., "Bearer your-token-here") or
+                    disable the header.
+                  </div>
+                </div>
+              </AlertDescription>
+            </Alert>
+          )
+        );
+      })()}
+
       {headers.length === 0 ? (
         <div className="text-center py-4 text-muted-foreground">
           <p className="text-sm">No custom headers configured</p>
@@ -171,7 +222,9 @@ const CustomHeaders = ({
           {headers.map((header, index) => (
             <div
               key={index}
-              className="flex items-start gap-2 p-2 border rounded-md"
+              className={`flex items-start gap-2 p-2 border rounded-md ${
+                isInvalidAuthHeader(header) ? "border-red-200 bg-red-50" : ""
+              }`}
             >
               <Switch
                 checked={header.enabled}

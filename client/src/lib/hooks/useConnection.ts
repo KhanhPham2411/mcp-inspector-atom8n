@@ -374,7 +374,7 @@ export function useConnection({
 
   const connect = async (_e?: unknown, retryCount: number = 0) => {
     setConnectionStatus("connecting");
-    
+
     const clientCapabilities = {
       capabilities: {
         sampling: {},
@@ -414,7 +414,10 @@ export function useConnection({
 
       const isEmptyAuthHeader = (header: CustomHeaders[number]) =>
         header.name.trim().toLowerCase() === "authorization" &&
-        header.value.trim().toLowerCase() === "bearer";
+        (header.value.trim() === "" ||
+          header.value.trim().toLowerCase() === "bearer" ||
+          (header.value.trim().toLowerCase().startsWith("bearer ") &&
+            header.value.trim().length <= 7));
 
       // Check for empty Authorization headers and show validation error
       const hasEmptyAuthHeader = finalHeaders.some(
@@ -425,9 +428,10 @@ export function useConnection({
         toast({
           title: "Invalid Authorization Header",
           description:
-            "Authorization header is enabled but empty. Please add a token or disable the header.",
+            "Authorization header is enabled but missing a token. Please add a Bearer token (e.g., 'Bearer your-token-here') or disable the header.",
           variant: "destructive",
         });
+        return; // Prevent connection attempt with invalid headers
       }
 
       const needsOAuthToken = !finalHeaders.some(
