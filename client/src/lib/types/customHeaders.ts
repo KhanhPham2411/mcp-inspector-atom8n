@@ -9,7 +9,7 @@ export type CustomHeaders = CustomHeader[];
 export const createEmptyHeader = (): CustomHeader => ({
   name: "",
   value: "",
-  enabled: true,
+  enabled: false,
 });
 
 export const createHeaderFromBearerToken = (

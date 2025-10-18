@@ -110,7 +110,10 @@ const App = () => {
   const [command, setCommand] = useState<string>(getInitialCommand);
   const [args, setArgs] = useState<string>(getInitialArgs);
   const [configFilePath, setConfigFilePath] = useState<string>(() => {
-    return localStorage.getItem("lastConfigFilePath") || `C:\\Users\\%USERPROFILE%\\.cursor\\mcp.json`;
+    return (
+      localStorage.getItem("lastConfigFilePath") ||
+      `C:\\Users\\%USERPROFILE%\\.cursor\\mcp.json`
+    );
   });
 
   const [sseUrl, setSseUrl] = useState<string>(getInitialSseUrl);
@@ -129,7 +132,9 @@ const App = () => {
   const [notifications, setNotifications] = useState<ServerNotification[]>([]);
   const [roots, setRoots] = useState<Root[]>([]);
   const [env, setEnv] = useState<Record<string, string>>({});
-  const [currentServerName, setCurrentServerName] = useState<string | null>(null);
+  const [currentServerName, setCurrentServerName] = useState<string | null>(
+    null,
+  );
 
   const [config, setConfig] = useState<InspectorConfig>(() =>
     initializeInspectorConfig(CONFIG_LOCAL_STORAGE_KEY),
@@ -178,13 +183,7 @@ const App = () => {
     }
 
     // Default to empty array
-    return [
-      {
-        name: "Authorization",
-        value: "Bearer ",
-        enabled: false,
-      },
-    ];
+    return [];
   });
 
   const [pendingSampleRequests, setPendingSampleRequests] = useState<
@@ -233,7 +232,10 @@ const App = () => {
 
     // If already connected or connecting, disconnect first
     try {
-      if (connectionStatus === "connected" || connectionStatus === "connecting") {
+      if (
+        connectionStatus === "connected" ||
+        connectionStatus === "connecting"
+      ) {
         await disconnectMcpServer();
       }
     } catch {
@@ -414,8 +416,6 @@ const App = () => {
       localStorage.removeItem("lastBearerToken");
     }
   }, [bearerToken]);
-
-  
 
   useEffect(() => {
     if (headerName) {
@@ -603,7 +603,8 @@ const App = () => {
         const resp = await fetch(`${getMCPProxyAddress(config)}/servers`);
         if (!resp.ok) return;
         const data = await resp.json();
-        const servers: Array<{ name: string; config: any }> = data.servers || [];
+        const servers: Array<{ name: string; config: any }> =
+          data.servers || [];
 
         let matched: string | null = null;
 
@@ -613,7 +614,10 @@ const App = () => {
             const cfgCmd = cfg.command;
             const cfgArgs: string[] = Array.isArray(cfg.args) ? cfg.args : [];
             const currentArgs = args.trim() ? args.trim().split(/\s+/) : [];
-            if (cfgCmd === command && JSON.stringify(cfgArgs) === JSON.stringify(currentArgs)) {
+            if (
+              cfgCmd === command &&
+              JSON.stringify(cfgArgs) === JSON.stringify(currentArgs)
+            ) {
               matched = s.name;
               break;
             }
@@ -1283,7 +1287,12 @@ const App = () => {
                     />
                     <AuthDebuggerWrapper />
                     <TabsContent value="store">
-                      <MCPStoreTab config={config} currentServers={currentServers} onServersChange={setCurrentServers} onTestConnection={handleTestConnection} />
+                      <MCPStoreTab
+                        config={config}
+                        currentServers={currentServers}
+                        onServersChange={setCurrentServers}
+                        onTestConnection={handleTestConnection}
+                      />
                     </TabsContent>
                     <TabsContent value="logger">
                       <LoggerTab config={config} />
@@ -1317,7 +1326,12 @@ const App = () => {
                 </TabsTrigger>
               </TabsList>
               <TabsContent value="store">
-                <MCPStoreTab config={config} currentServers={currentServers} onServersChange={setCurrentServers} onTestConnection={handleTestConnection} />
+                <MCPStoreTab
+                  config={config}
+                  currentServers={currentServers}
+                  onServersChange={setCurrentServers}
+                  onTestConnection={handleTestConnection}
+                />
               </TabsContent>
               <TabsContent value="logger">
                 <LoggerTab config={config} />
