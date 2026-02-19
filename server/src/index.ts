@@ -160,6 +160,13 @@ const webAppTransports: Map<string, Transport> = new Map<string, Transport>(); /
 const serverTransports: Map<string, Transport> = new Map<string, Transport>(); // Server Transports by web app sessionId
 const sessionHeaderHolders: Map<string, { headers: HeadersInit }> = new Map(); // For dynamic header updates
 
+// Cache for execute-tool connections: reuse client+transport per serverName
+type CachedExecuteToolConnection = { client: Client; transport: Transport };
+const executeToolConnectionCache = new Map<
+  string,
+  CachedExecuteToolConnection | Promise<CachedExecuteToolConnection>
+>();
+
 // Use provided token from environment or generate a new one
 const sessionToken =
   process.env.MCP_PROXY_AUTH_TOKEN || randomBytes(32).toString("hex");
@@ -1225,7 +1232,98 @@ app.post(
   },
 );
 
-// New endpoint for on-demand tool execution
+// Helpers for execute-tool connection cache
+async function createExecuteToolConnection(
+  serverConfig: Record<string, unknown>,
+  req: express.Request,
+): Promise<CachedExecuteToolConnection> {
+  let transport: Transport;
+  let headerHolder: { headers: HeadersInit } | undefined;
+
+  if (serverConfig.type === "sse" || serverConfig.url) {
+    const url = serverConfig.url || serverConfig.sseUrl;
+    if (!url || typeof url !== "string") {
+      throw new Error(
+        "Server configuration missing URL for SSE/HTTP transport",
+      );
+    }
+    const headers = getHttpHeaders(req);
+    headers["Accept"] = "text/event-stream, application/json";
+    headerHolder = { headers };
+    if (serverConfig.type === "sse") {
+      transport = new SSEClientTransport(new URL(url), {
+        eventSourceInit: { fetch: createCustomFetch(headerHolder) },
+        requestInit: { headers: headerHolder.headers },
+      });
+    } else {
+      transport = new StreamableHTTPClientTransport(new URL(url), {
+        fetch: createCustomFetch(headerHolder),
+      });
+    }
+  } else {
+    const command = (serverConfig.command as string) || "node";
+    const args = (serverConfig.args as string[]) || [];
+    const env = {
+      ...defaultEnvironment,
+      ...process.env,
+      ...(serverConfig.env as Record<string, string>),
+    };
+    const { cmd, args: processedArgs } = findActualExecutable(command, args);
+    transport = new StdioClientTransport({
+      command: cmd,
+      args: processedArgs,
+      env,
+      stderr: "pipe",
+    });
+  }
+  const client = new Client({
+    name: "mcp-inspector-executor",
+    version: "1.0.0",
+  });
+  await client.connect(transport);
+  return { client, transport };
+}
+
+async function getOrCreateExecuteToolConnection(
+  serverName: string,
+  serverConfig: Record<string, unknown>,
+  req: express.Request,
+): Promise<CachedExecuteToolConnection> {
+  const entry = executeToolConnectionCache.get(serverName);
+  if (entry && "client" in entry) return entry;
+  if (entry instanceof Promise) {
+    try {
+      return await entry;
+    } catch {
+      executeToolConnectionCache.delete(serverName);
+    }
+  }
+  const promise = createExecuteToolConnection(serverConfig, req);
+  executeToolConnectionCache.set(serverName, promise);
+  try {
+    const result = await promise;
+    executeToolConnectionCache.set(serverName, result);
+    return result;
+  } catch (err) {
+    executeToolConnectionCache.delete(serverName);
+    throw err;
+  }
+}
+
+async function evictExecuteToolConnection(serverName: string): Promise<void> {
+  const entry = executeToolConnectionCache.get(serverName);
+  executeToolConnectionCache.delete(serverName);
+  if (entry && "client" in entry) {
+    try {
+      await entry.client.close();
+      await entry.transport.close();
+    } catch (cleanupError) {
+      console.warn("Error during execute-tool cache eviction:", cleanupError);
+    }
+  }
+}
+
+// New endpoint for on-demand tool execution (connections cached by serverName)
 app.post(
   "/execute-tool",
   originValidationMiddleware,
@@ -1242,7 +1340,6 @@ app.post(
     }
 
     try {
-      // Load MCP configuration
       const homeDir = os.homedir();
       const configPath = path.join(homeDir, ".cursor", "mcp.json");
       const fileContent = await fs.readFile(configPath, "utf8");
@@ -1260,91 +1357,26 @@ app.post(
       const serverConfig = servers[serverName];
       console.log(`Executing tool '${toolName}' on server '${serverName}'`);
 
-      // Create transport based on server configuration
-      let transport: Transport;
-      let headerHolder: { headers: HeadersInit } | undefined;
-
-      if (serverConfig.type === "sse" || serverConfig.url) {
-        // SSE or StreamableHTTP transport
-        const url = serverConfig.url || serverConfig.sseUrl;
-        if (!url) {
-          res.status(400).json({
-            error: "Bad Request",
-            message: "Server configuration missing URL for SSE/HTTP transport",
-          });
-          return;
-        }
-
-        const headers = getHttpHeaders(req);
-        headers["Accept"] = "text/event-stream, application/json";
-        headerHolder = { headers };
-
-        if (serverConfig.type === "sse") {
-          transport = new SSEClientTransport(new URL(url), {
-            eventSourceInit: {
-              fetch: createCustomFetch(headerHolder),
-            },
-            requestInit: {
-              headers: headerHolder.headers,
-            },
-          });
-        } else {
-          transport = new StreamableHTTPClientTransport(new URL(url), {
-            fetch: createCustomFetch(headerHolder),
-          });
-        }
-      } else {
-        // STDIO transport
-        const command = serverConfig.command || "node";
-        const args = serverConfig.args || [];
-        const env = {
-          ...defaultEnvironment,
-          ...process.env,
-          ...serverConfig.env,
-        };
-
-        const { cmd, args: processedArgs } = findActualExecutable(
-          command,
-          args,
-        );
-        transport = new StdioClientTransport({
-          command: cmd,
-          args: processedArgs,
-          env,
-          stderr: "pipe",
-        });
-      }
-
-      // Create MCP client
-      const client = new Client({
-        name: "mcp-inspector-executor",
-        version: "1.0.0",
-      });
+      const { client, transport } = await getOrCreateExecuteToolConnection(
+        serverName,
+        serverConfig,
+        req,
+      );
 
       try {
-        // Connect to server (connect() will start the transport automatically)
-        await client.connect(transport);
-
-        // Execute the tool
         const result = await client.callTool({
           name: toolName,
           arguments: toolArgs,
         });
-
         res.json({
           success: true,
           result,
           serverName,
           toolName,
         });
-      } finally {
-        // Always disconnect and cleanup
-        try {
-          await client.close();
-          await transport.close();
-        } catch (cleanupError) {
-          console.warn("Error during cleanup:", cleanupError);
-        }
+      } catch (toolError) {
+        await evictExecuteToolConnection(serverName);
+        throw toolError;
       }
     } catch (error) {
       console.error("Error executing tool:", error);
