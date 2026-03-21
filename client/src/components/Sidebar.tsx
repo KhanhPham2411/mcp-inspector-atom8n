@@ -126,6 +126,7 @@ const Sidebar = ({
   const [selectedServer, setSelectedServer] = useState<string>("");
   const [isLoadingDefault, setIsLoadingDefault] = useState<boolean>(false);
   const [configCounts, setConfigCounts] = useState<Record<string, number>>({});
+  const [activeConfigPath, setActiveConfigPath] = useState<string>("");
   const hasLoadedConfig = useRef(false);
   const { toast } = useToast();
 
@@ -843,9 +844,12 @@ const Sidebar = ({
                     <Button
                       variant="outline"
                       size="sm"
-                      onClick={() => loadDefaultConfig("~/.cursor/mcp.json")}
+                      onClick={() => {
+                        setActiveConfigPath("~/.cursor/mcp.json");
+                        loadDefaultConfig("~/.cursor/mcp.json");
+                      }}
                       disabled={isLoadingDefault}
-                      className="flex items-center gap-1.5 px-2"
+                      className={`flex items-center gap-1.5 px-2 ${activeConfigPath === "~/.cursor/mcp.json" ? "ring-2 ring-green-500" : ""}`}
                     >
                       {isLoadingDefault ? (
                         <Loader2 className="w-4 h-4 animate-spin" />
@@ -869,13 +873,16 @@ const Sidebar = ({
                     <Button
                       variant="outline"
                       size="sm"
-                      onClick={() =>
+                      onClick={() => {
+                        setActiveConfigPath(
+                          "~/.gemini/antigravity/mcp_config.json",
+                        );
                         loadDefaultConfig(
                           "~/.gemini/antigravity/mcp_config.json",
-                        )
-                      }
+                        );
+                      }}
                       disabled={isLoadingDefault}
-                      className="flex items-center gap-1.5 px-2"
+                      className={`flex items-center gap-1.5 px-2 ${activeConfigPath === "~/.gemini/antigravity/mcp_config.json" ? "ring-2 ring-green-500" : ""}`}
                     >
                       {isLoadingDefault ? (
                         <Loader2 className="w-4 h-4 animate-spin" />
