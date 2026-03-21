@@ -321,57 +321,85 @@ const Sidebar = ({
     [loadedServers, applyServerConfig],
   );
 
-  // Attempt to load default configuration file via server endpoint
-  const loadDefaultConfig = useCallback(async () => {
-    setIsLoadingDefault(true);
-    try {
-      console.log(
-        "Attempting to load default configuration from server /mcp-config",
-      );
+  // Attempt to load configuration file via server endpoint
+  // If configPath is provided, it will be passed as ?path= query param;
+  // otherwise the server defaults to ~/.cursor/mcp.json
+  const loadDefaultConfig = useCallback(
+    async (configPath?: string) => {
+      setIsLoadingDefault(true);
+      try {
+        console.log(
+          "Attempting to load configuration from server /mcp-config",
+          configPath ? `(path=${configPath})` : "(default)",
+        );
 
-      const baseUrl = getMCPProxyAddress(config);
-      const { token, header } = getMCPProxyAuthToken(config);
-      const url = `${baseUrl}/mcp-config`;
+        const baseUrl = getMCPProxyAddress(config);
+        const { token, header } = getMCPProxyAuthToken(config);
+        const url = configPath
+          ? `${baseUrl}/mcp-config?path=${encodeURIComponent(configPath)}`
+          : `${baseUrl}/mcp-config`;
 
-      const resp = await fetch(url, {
-        method: "GET",
-        headers: {
-          "Content-Type": "application/json",
-          [header]: token ? `Bearer ${token}` : "",
-        },
-      });
+        const resp = await fetch(url, {
+          method: "GET",
+          headers: {
+            "Content-Type": "application/json",
+            [header]: token ? `Bearer ${token}` : "",
+          },
+        });
 
-      if (!resp.ok) {
-        const err = await resp.json().catch(() => ({}));
-        console.error("Failed to load default MCP config:", err);
-        return; // silent fail; user can still pick a file manually
+        if (!resp.ok) {
+          const err = await resp.json().catch(() => ({}));
+          console.error("Failed to load MCP config:", err);
+          if (configPath) {
+            toast({
+              title: "Error",
+              description: `Failed to load config from ${configPath}: ${err.message || resp.statusText}`,
+              variant: "destructive",
+            });
+          }
+          return;
+        }
+
+        const data = await resp.json();
+        console.log("MCP config loaded:", data);
+
+        const configData = data.config as any;
+        const servers = (configData.servers || configData.mcpServers) as
+          | Record<string, any>
+          | undefined;
+        if (!servers) return;
+
+        setLoadedServers(servers);
+        const names = Object.keys(servers);
+        if (names.length > 0) {
+          setSelectedServer(names[0]);
+          applyServerConfig(servers[names[0]]);
+        }
+        if (typeof data.path === "string" && data.path) {
+          setConfigFilePath(data.path);
+        }
+
+        if (configPath) {
+          toast({
+            title: "Configuration loaded",
+            description: `Loaded ${names.length} server(s) from ${configPath}`,
+          });
+        }
+      } catch (error) {
+        console.error("Error loading config:", error);
+        if (configPath) {
+          toast({
+            title: "Error",
+            description: `Failed to load config: ${error instanceof Error ? error.message : String(error)}`,
+            variant: "destructive",
+          });
+        }
+      } finally {
+        setIsLoadingDefault(false);
       }
-
-      const data = await resp.json();
-      console.log("Default MCP config loaded:", data);
-
-      const configData = data.config as any;
-      const servers = (configData.servers || configData.mcpServers) as
-        | Record<string, any>
-        | undefined;
-      if (!servers) return;
-
-      setLoadedServers(servers);
-      const names = Object.keys(servers);
-      if (names.length > 0) {
-        setSelectedServer(names[0]);
-        applyServerConfig(servers[names[0]]);
-      }
-      if (typeof data.path === "string" && data.path) {
-        setConfigFilePath(data.path);
-      }
-    } catch (error) {
-      console.error("Error loading default config:", error);
-      // Do not toast; we want this to be silent and non-blocking
-    } finally {
-      setIsLoadingDefault(false);
-    }
-  }, [config, applyServerConfig, setConfigFilePath]);
+    },
+    [config, applyServerConfig, setConfigFilePath, toast],
+  );
 
   // Auto-load default configuration on component mount
   useEffect(() => {
@@ -565,16 +593,87 @@ const Sidebar = ({
                   </div>
                 )}
               </div>
-              <div className="flex gap-2">
-                <Button
-                  variant="outline"
-                  size="sm"
-                  onClick={loadDefaultConfig}
-                  disabled={isLoadingDefault}
-                  className="flex-1"
-                >
-                  {isLoadingDefault ? "Loading..." : "Load Default Config"}
-                </Button>
+              <div className="flex items-center gap-2">
+                <Tooltip>
+                  <TooltipTrigger asChild>
+                    <Button
+                      variant="outline"
+                      size="sm"
+                      onClick={() => loadDefaultConfig("~/.cursor/mcp.json")}
+                      disabled={isLoadingDefault}
+                      className="flex items-center gap-1.5 px-2"
+                    >
+                      {isLoadingDefault ? (
+                        <Loader2 className="w-4 h-4 animate-spin" />
+                      ) : (
+                        <svg
+                          className="w-4 h-4"
+                          viewBox="0 0 24 24"
+                          fill="currentColor"
+                          xmlns="http://www.w3.org/2000/svg"
+                        >
+                          <path
+                            d="M12 2L2 7l10 5 10-5-10-5zM2 17l10 5 10-5M2 12l10 5 10-5"
+                            stroke="currentColor"
+                            strokeWidth="2"
+                            fill="none"
+                            strokeLinecap="round"
+                            strokeLinejoin="round"
+                          />
+                        </svg>
+                      )}
+                      Cursor
+                    </Button>
+                  </TooltipTrigger>
+                  <TooltipContent>~/.cursor/mcp.json</TooltipContent>
+                </Tooltip>
+                <Tooltip>
+                  <TooltipTrigger asChild>
+                    <Button
+                      variant="outline"
+                      size="sm"
+                      onClick={() =>
+                        loadDefaultConfig(
+                          "~/.gemini/antigravity/mcp_config.json",
+                        )
+                      }
+                      disabled={isLoadingDefault}
+                      className="flex items-center gap-1.5 px-2"
+                    >
+                      {isLoadingDefault ? (
+                        <Loader2 className="w-4 h-4 animate-spin" />
+                      ) : (
+                        <svg
+                          className="w-4 h-4"
+                          viewBox="0 0 24 24"
+                          fill="currentColor"
+                          xmlns="http://www.w3.org/2000/svg"
+                        >
+                          <path
+                            d="M12 3L4 9v6l8 6 8-6V9l-8-6z"
+                            stroke="currentColor"
+                            strokeWidth="2"
+                            fill="none"
+                            strokeLinecap="round"
+                            strokeLinejoin="round"
+                          />
+                          <circle
+                            cx="12"
+                            cy="12"
+                            r="3"
+                            stroke="currentColor"
+                            strokeWidth="2"
+                            fill="none"
+                          />
+                        </svg>
+                      )}
+                      Antigravity
+                    </Button>
+                  </TooltipTrigger>
+                  <TooltipContent>
+                    ~/.gemini/antigravity/mcp_config.json
+                  </TooltipContent>
+                </Tooltip>
               </div>
             </div>
 

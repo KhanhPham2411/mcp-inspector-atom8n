@@ -943,8 +943,14 @@ app.get(
   async (req, res) => {
     try {
       // Allow overriding the path via query param for flexibility/testing
-      const overridePath = (req.query.path as string) || "";
+      const rawOverridePath = (req.query.path as string) || "";
       const homeDir = os.homedir();
+      // Expand ~ to the user's home directory
+      const overridePath = rawOverridePath.startsWith("~/")
+        ? path.join(homeDir, rawOverridePath.slice(2))
+        : rawOverridePath === "~"
+          ? homeDir
+          : rawOverridePath;
       const defaultPath = path.join(homeDir, ".cursor", "mcp.json");
       const targetPath = overridePath || defaultPath;
 
