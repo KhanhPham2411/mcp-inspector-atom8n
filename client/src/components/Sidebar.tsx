@@ -658,6 +658,8 @@ const Sidebar = ({
     selectedServer,
   );
 
+  const configBtnClass = "flex items-center gap-1.5 px-[15px]";
+
   return (
     <div className="bg-card border-r border-border flex flex-col h-full">
       <div className="flex items-center justify-between p-4 border-b border-gray-200 dark:border-border">
@@ -698,7 +700,7 @@ const Sidebar = ({
                         loadDefaultConfig("~/.cursor/mcp.json");
                       }}
                       disabled={isLoadingDefault}
-                      className={`flex items-center gap-1.5 px-2 ${activeConfigPath === "~/.cursor/mcp.json" ? "ring-2 ring-green-500" : ""}`}
+                      className={`${configBtnClass} ${activeConfigPath === "~/.cursor/mcp.json" ? "ring-2 ring-green-500" : ""}`}
                     >
                       {isLoadingDefault ? (
                         <Loader2 className="w-4 h-4 animate-spin" />
@@ -735,7 +737,7 @@ const Sidebar = ({
                         );
                       }}
                       disabled={isLoadingDefault}
-                      className={`flex items-center gap-1.5 px-2 ${activeConfigPath === "~/.gemini/antigravity/mcp_config.json" ? "ring-2 ring-green-500" : ""}`}
+                      className={`${configBtnClass} ${activeConfigPath === "~/.gemini/antigravity/mcp_config.json" ? "ring-2 ring-green-500" : ""}`}
                     >
                       {isLoadingDefault ? (
                         <Loader2 className="w-4 h-4 animate-spin" />
@@ -795,7 +797,7 @@ const Sidebar = ({
                         }
                       }}
                       disabled={isLoadingDefault}
-                      className={`flex items-center gap-1.5 px-2 ${activeConfigPath && activeConfigPath !== "~/.cursor/mcp.json" && activeConfigPath !== "~/.gemini/antigravity/mcp_config.json" ? "ring-2 ring-green-500" : ""}`}
+                      className={`${configBtnClass} ${activeConfigPath && activeConfigPath !== "~/.cursor/mcp.json" && activeConfigPath !== "~/.gemini/antigravity/mcp_config.json" ? "ring-2 ring-green-500" : ""}`}
                     >
                       {isLoadingDefault ? (
                         <Loader2 className="w-4 h-4 animate-spin" />
