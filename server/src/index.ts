@@ -1667,14 +1667,17 @@ app.post(
 
       const folderPath = path.dirname(expandedPath);
 
-      logger.info(`Opening config folder: ${folderPath}`);
+      logger.info(
+        `Opening config folder: ${folderPath} (revealing ${expandedPath})`,
+      );
 
       const platform = process.platform;
       let command: string;
       if (platform === "darwin") {
-        command = `open "${folderPath}"`;
+        // -R reveals and selects the file in Finder
+        command = `open -R "${expandedPath}"`;
       } else if (platform === "win32") {
-        command = `explorer "${folderPath}"`;
+        command = `explorer /select,"${expandedPath}"`;
       } else {
         command = `xdg-open "${folderPath}"`;
       }
