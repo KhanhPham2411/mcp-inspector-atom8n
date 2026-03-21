@@ -453,12 +453,17 @@ const Sidebar = ({
         }
 
         // 2) Re-fetch server counts for all known config paths
+        // Include custom activeConfigPath if not already in CONFIG_PATHS
+        const pathsToFetch = [...CONFIG_PATHS];
+        if (activeConfigPath && !CONFIG_PATHS.includes(activeConfigPath)) {
+          pathsToFetch.push(activeConfigPath);
+        }
         console.log(
-          "[Sidebar refreshAll] fetching counts for CONFIG_PATHS:",
-          CONFIG_PATHS,
+          "[Sidebar refreshAll] fetching counts for paths:",
+          pathsToFetch,
         );
         const counts: Record<string, number> = {};
-        for (const cfgPath of CONFIG_PATHS) {
+        for (const cfgPath of pathsToFetch) {
           try {
             const url = `${baseUrl}/mcp-config?path=${encodeURIComponent(cfgPath)}`;
             console.log(
