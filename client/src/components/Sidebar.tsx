@@ -16,6 +16,7 @@ import {
   CheckCheck,
   Loader2,
   FolderOpen,
+  FileCog,
 } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
@@ -131,18 +132,49 @@ const Sidebar = ({
     () => localStorage.getItem("activeConfigPath") || "",
   );
   const hasLoadedConfig = useRef(false);
+  const customFileInputRef = useRef<HTMLInputElement>(null);
   const { toast } = useToast();
 
-  // Reusable error reporter for copy actions
-  const reportError = useCallback(
-    (error: unknown) => {
-      toast({
-        title: "Error",
-        description: `Failed to copy config: ${error instanceof Error ? error.message : String(error)}`,
-        variant: "destructive",
+  // Load configuration from a picked file
+  const loadConfigFromFile = useCallback(
+    (file: File) => {
+      file.text().then((text) => {
+        try {
+          const configData = JSON.parse(text);
+          const servers = (configData.servers || configData.mcpServers) as
+            | Record<string, any>
+            | undefined;
+
+          if (servers && Object.keys(servers).length > 0) {
+            setLoadedServers(servers);
+            const names = Object.keys(servers);
+            setSelectedServer(names[0]);
+            applyServerConfig(servers[names[0]]);
+            setActiveConfigPath(file.name);
+            localStorage.setItem("activeConfigPath", file.name);
+            setConfigFilePath(file.name);
+            toast({
+              title: "Configuration loaded",
+              description: `Loaded ${names.length} server(s) from ${file.name}`,
+            });
+          } else {
+            toast({
+              title: "Invalid config",
+              description: "No 'servers' or 'mcpServers' found in the file.",
+              variant: "destructive",
+            });
+          }
+        } catch (err) {
+          toast({
+            title: "Error",
+            description: `Failed to parse JSON: ${err instanceof Error ? err.message : String(err)}`,
+            variant: "destructive",
+          });
+        }
       });
     },
-    [toast],
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+    [toast, setConfigFilePath],
   );
 
   // Apply server configuration to the form
@@ -183,131 +215,6 @@ const Sidebar = ({
       }
     },
     [setTransportType, setCommand, setArgs, setEnv, setSseUrl],
-  );
-
-  // Load configuration from file
-  const loadConfigFromFile = useCallback(
-    async (file: File) => {
-      try {
-        console.log(
-          "Starting to load configuration file:",
-          file.name,
-          "Size:",
-          file.size,
-          "bytes",
-        );
-
-        const text = await file.text();
-        console.log("File content loaded, length:", text.length);
-        console.log(
-          "File content preview:",
-          text.substring(0, 200) + (text.length > 200 ? "..." : ""),
-        );
-
-        let configData;
-        try {
-          configData = JSON.parse(text);
-          console.log("JSON parsed successfully");
-        } catch (parseError) {
-          console.error("JSON parse error:", parseError);
-          const errorMessage =
-            parseError instanceof Error
-              ? parseError.message
-              : String(parseError);
-          throw new Error(`Invalid JSON format: ${errorMessage}`);
-        }
-
-        console.log("Parsed configuration data:", configData);
-        console.log("Configuration keys:", Object.keys(configData));
-
-        // Check for different possible formats
-        if (configData.servers && typeof configData.servers === "object") {
-          console.log(
-            "Found 'servers' key with",
-            Object.keys(configData.servers).length,
-            "servers",
-          );
-          console.log("Server names:", Object.keys(configData.servers));
-
-          // Store all servers for selection
-          setLoadedServers(configData.servers);
-
-          // Select the first server by default
-          const serverNames = Object.keys(configData.servers);
-          if (serverNames.length > 0) {
-            console.log("Selecting first server:", serverNames[0]);
-            setSelectedServer(serverNames[0]);
-            applyServerConfig(configData.servers[serverNames[0]]);
-          }
-
-          // Save to localStorage
-          localStorage.setItem("lastConfigFilePath", file.name);
-
-          toast({
-            title: "Configuration loaded",
-            description: `Successfully loaded ${serverNames.length} server(s) from ${file.name}`,
-          });
-        } else if (
-          configData.mcpServers &&
-          typeof configData.mcpServers === "object"
-        ) {
-          console.log(
-            "Found 'mcpServers' key with",
-            Object.keys(configData.mcpServers).length,
-            "servers",
-          );
-          console.log("Server names:", Object.keys(configData.mcpServers));
-
-          // Handle mcpServers format (alternative format)
-          setLoadedServers(configData.mcpServers);
-
-          const serverNames = Object.keys(configData.mcpServers);
-          if (serverNames.length > 0) {
-            console.log("Selecting first server:", serverNames[0]);
-            setSelectedServer(serverNames[0]);
-            applyServerConfig(configData.mcpServers[serverNames[0]]);
-          }
-
-          localStorage.setItem("lastConfigFilePath", file.name);
-
-          toast({
-            title: "Configuration loaded",
-            description: `Successfully loaded ${serverNames.length} server(s) from ${file.name} (mcpServers format)`,
-          });
-        } else {
-          console.error("No valid server configuration found");
-          console.error("Available keys:", Object.keys(configData));
-          console.error("Expected 'servers' or 'mcpServers' key");
-
-          const availableKeys = Object.keys(configData);
-          const expectedFormats = [
-            "Expected format: { 'servers': { 'serverName': { 'command': '...', 'args': [...] } } }",
-            "Alternative format: { 'mcpServers': { 'serverName': { 'command': '...', 'args': [...] } } }",
-          ];
-
-          throw new Error(
-            `Invalid MCP configuration file format. Found keys: [${availableKeys.join(", ")}]. ${expectedFormats.join(" ")}`,
-          );
-        }
-      } catch (error) {
-        console.error("Error loading configuration file:", error);
-        const errorDetails =
-          error instanceof Error
-            ? {
-                name: error.name,
-                message: error.message,
-                stack: error.stack,
-              }
-            : {
-                name: "Unknown",
-                message: String(error),
-                stack: undefined,
-              };
-        console.error("Error details:", errorDetails);
-        reportError(error);
-      }
-    },
-    [toast, reportError, applyServerConfig],
   );
 
   // Handle server selection change
@@ -805,38 +712,9 @@ const Sidebar = ({
           </TabsList>
 
           <TabsContent value="file" className="space-y-4 mt-4">
-            {/* Configuration File Input */}
+            {/* Configuration Buttons */}
             <div className="space-y-2">
-              <label
-                className="text-sm font-medium"
-                htmlFor="config-file-input"
-              >
-                Load Configuration from File
-              </label>
-              <div className="space-y-2">
-                <Input
-                  id="config-file-input"
-                  type="file"
-                  accept=".json"
-                  onChange={(e) => {
-                    const file = e.target.files?.[0];
-                    if (file) {
-                      setConfigFilePath(file.name);
-                      loadConfigFromFile(file);
-                    }
-                  }}
-                  className="font-mono"
-                  disabled={isLoadingDefault}
-                />
-                {isLoadingDefault && (
-                  <div className="text-xs text-muted-foreground bg-muted p-2 rounded">
-                    <div className="text-blue-600">
-                      <strong>Auto-loading...</strong> Please select your
-                      mcp.json file
-                    </div>
-                  </div>
-                )}
-              </div>
+              <label className="text-sm font-medium">Load Configuration</label>
               <div className="flex items-center gap-2">
                 <Tooltip>
                   <TooltipTrigger asChild>
@@ -911,6 +789,38 @@ const Sidebar = ({
                     ~/.gemini/antigravity/mcp_config.json
                   </TooltipContent>
                 </Tooltip>
+                <Tooltip>
+                  <TooltipTrigger asChild>
+                    <Button
+                      variant="outline"
+                      size="sm"
+                      onClick={() => customFileInputRef.current?.click()}
+                      disabled={isLoadingDefault}
+                      className={`flex items-center gap-1.5 px-2 ${activeConfigPath && activeConfigPath !== "~/.cursor/mcp.json" && activeConfigPath !== "~/.gemini/antigravity/mcp_config.json" ? "ring-2 ring-green-500" : ""}`}
+                    >
+                      {isLoadingDefault ? (
+                        <Loader2 className="w-4 h-4 animate-spin" />
+                      ) : (
+                        <FileCog className="w-4 h-4" />
+                      )}
+                      Custom
+                    </Button>
+                  </TooltipTrigger>
+                  <TooltipContent>Pick a custom MCP config file</TooltipContent>
+                </Tooltip>
+                <input
+                  ref={customFileInputRef}
+                  type="file"
+                  accept=".json"
+                  className="hidden"
+                  onChange={(e) => {
+                    const file = e.target.files?.[0];
+                    if (file) {
+                      loadConfigFromFile(file);
+                    }
+                    e.target.value = "";
+                  }}
+                />
               </div>
               {_configFilePath && !isLoadingDefault && (
                 <button
