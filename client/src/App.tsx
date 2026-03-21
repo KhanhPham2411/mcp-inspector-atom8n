@@ -1292,6 +1292,7 @@ const App = () => {
                         currentServers={currentServers}
                         onServersChange={setCurrentServers}
                         onTestConnection={handleTestConnection}
+                        configFilePath={configFilePath}
                       />
                     </TabsContent>
                     <TabsContent value="logger">
@@ -1331,6 +1332,7 @@ const App = () => {
                   currentServers={currentServers}
                   onServersChange={setCurrentServers}
                   onTestConnection={handleTestConnection}
+                  configFilePath={configFilePath}
                 />
               </TabsContent>
               <TabsContent value="logger">

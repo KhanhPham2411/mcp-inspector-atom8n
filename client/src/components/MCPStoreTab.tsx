@@ -75,6 +75,7 @@ interface MCPStoreTabProps {
   currentServers?: Record<string, ServerConfig>;
   onServersChange?: (servers: Record<string, ServerConfig>) => void;
   onTestConnection?: (serverConfig: ServerConfig) => void;
+  configFilePath?: string;
 }
 
 const MCPStoreTab = ({
@@ -82,6 +83,7 @@ const MCPStoreTab = ({
   currentServers = {},
   onServersChange,
   onTestConnection,
+  configFilePath,
 }: MCPStoreTabProps) => {
   const [sources, setSources] = useState<MCPSource[]>([
     {
@@ -240,6 +242,14 @@ const MCPStoreTab = ({
 
   const handleInstallServer = async (server: MCPServer) => {
     const serverKey = getServerKey(server);
+    console.log("[MCPStore] handleInstallServer called", {
+      serverKey,
+      serverName: server.name,
+      serverCommand: server.command,
+      serverArgs: server.args,
+      configFilePath,
+      currentServersKeys: Object.keys(currentServers),
+    });
     setInstallingServer(serverKey);
     try {
       // Generate the server configuration
@@ -250,23 +260,38 @@ const MCPStoreTab = ({
         disabled: server.disabled,
         autoApprove: server.autoApprove,
       };
+      console.log("[MCPStore] Generated serverConfig:", serverConfig);
 
       // Generate a unique server name (use the store name or create one)
       const serverName = server.name.toLowerCase().replace(/[^a-z0-9-]/g, "-");
       const finalServerName = Object.keys(currentServers).includes(serverName)
         ? `${serverName}-${Date.now()}`
         : serverName;
+      console.log("[MCPStore] Server name:", { serverName, finalServerName });
 
       // Add the new server to current configuration
       const updatedServers = {
         ...currentServers,
         [finalServerName]: serverConfig,
       };
+      console.log("[MCPStore] updatedServers:", updatedServers);
 
       // Update the MCP configuration file via API
       const baseUrl = getMCPProxyAddress(config);
       const { token, header } = getMCPProxyAuthToken(config);
-      const response = await fetch(`${baseUrl}/update-mcp-config`, {
+
+      // Build the URL with configFilePath as query param if available
+      let updateUrl = `${baseUrl}/update-mcp-config`;
+      if (configFilePath) {
+        updateUrl += `?path=${encodeURIComponent(configFilePath)}`;
+      }
+      console.log("[MCPStore] POST URL:", updateUrl);
+      console.log(
+        "[MCPStore] Request body:",
+        JSON.stringify({ servers: updatedServers }, null, 2),
+      );
+
+      const response = await fetch(updateUrl, {
         method: "POST",
         headers: {
           "Content-Type": "application/json",
@@ -275,19 +300,30 @@ const MCPStoreTab = ({
         body: JSON.stringify({ servers: updatedServers }),
       });
 
+      console.log(
+        "[MCPStore] Response status:",
+        response.status,
+        response.statusText,
+      );
+
       if (!response.ok) {
         const errorData = await response.json().catch(() => ({}));
+        console.error("[MCPStore] Error response data:", errorData);
         throw new Error(
           errorData.message ||
             `HTTP ${response.status}: ${response.statusText}`,
         );
       }
 
-      await response.json();
+      const responseData = await response.json();
+      console.log("[MCPStore] Success response:", responseData);
 
       // Refresh the current servers
       if (onServersChange) {
+        console.log("[MCPStore] Calling onServersChange with updated servers");
         onServersChange(updatedServers);
+      } else {
+        console.warn("[MCPStore] onServersChange callback is not provided!");
       }
 
       toast({
@@ -295,6 +331,7 @@ const MCPStoreTab = ({
         description: `${server.name} has been added to your MCP configuration file as "${finalServerName}".`,
       });
     } catch (error) {
+      console.error("[MCPStore] Install error:", error);
       toast({
         title: "Error",
         description: `Failed to install server: ${error instanceof Error ? error.message : String(error)}`,
@@ -346,6 +383,12 @@ const MCPStoreTab = ({
 
   const handleUninstallServer = async (server: MCPServer) => {
     const serverKey = getServerKey(server);
+    console.log("[MCPStore] handleUninstallServer called", {
+      serverKey,
+      serverName: server.name,
+      configFilePath,
+      currentServersKeys: Object.keys(currentServers),
+    });
     setInstallingServer(serverKey);
     try {
       // Find the server name in current configuration
@@ -361,15 +404,28 @@ const MCPStoreTab = ({
         return false;
       });
 
+      console.log("[MCPStore] Found server to uninstall:", serverName);
+
       if (serverName) {
         // Generate configuration without this server
         const updatedServers = { ...currentServers };
         delete updatedServers[serverName];
+        console.log(
+          "[MCPStore] Updated servers after removal:",
+          Object.keys(updatedServers),
+        );
 
         // Update the MCP configuration file via API
         const baseUrl = getMCPProxyAddress(config);
         const { token, header } = getMCPProxyAuthToken(config);
-        const response = await fetch(`${baseUrl}/update-mcp-config`, {
+
+        let updateUrl = `${baseUrl}/update-mcp-config`;
+        if (configFilePath) {
+          updateUrl += `?path=${encodeURIComponent(configFilePath)}`;
+        }
+        console.log("[MCPStore] Uninstall POST URL:", updateUrl);
+
+        const response = await fetch(updateUrl, {
           method: "POST",
           headers: {
             "Content-Type": "application/json",
@@ -378,15 +434,23 @@ const MCPStoreTab = ({
           body: JSON.stringify({ servers: updatedServers }),
         });
 
+        console.log(
+          "[MCPStore] Uninstall response status:",
+          response.status,
+          response.statusText,
+        );
+
         if (!response.ok) {
           const errorData = await response.json().catch(() => ({}));
+          console.error("[MCPStore] Uninstall error response:", errorData);
           throw new Error(
             errorData.message ||
               `HTTP ${response.status}: ${response.statusText}`,
           );
         }
 
-        await response.json();
+        const responseData = await response.json();
+        console.log("[MCPStore] Uninstall success response:", responseData);
 
         // Refresh the current servers
         if (onServersChange) {
@@ -398,6 +462,9 @@ const MCPStoreTab = ({
           description: `${server.name} (${serverName}) has been removed from your MCP configuration file.`,
         });
       } else {
+        console.warn(
+          "[MCPStore] Server not found in currentServers for uninstall",
+        );
         toast({
           title: "Server Not Found",
           description: `Could not find ${server.name} in current configuration.`,
@@ -405,6 +472,7 @@ const MCPStoreTab = ({
         });
       }
     } catch (error) {
+      console.error("[MCPStore] Uninstall error:", error);
       toast({
         title: "Error",
         description: `Failed to uninstall server: ${error instanceof Error ? error.message : String(error)}`,

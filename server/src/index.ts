@@ -1188,7 +1188,15 @@ app.post(
     try {
       const { servers } = req.body;
 
+      console.log("[update-mcp-config] Received request");
+      console.log("[update-mcp-config] req.query.path:", req.query.path);
+      console.log(
+        "[update-mcp-config] servers keys:",
+        servers ? Object.keys(servers) : "null/undefined",
+      );
+
       if (!servers || typeof servers !== "object") {
+        console.error("[update-mcp-config] Invalid servers configuration");
         res.status(400).json({
           error: "Bad Request",
           message: "Invalid servers configuration provided",
@@ -1197,15 +1205,31 @@ app.post(
       }
 
       // Allow overriding the path via query param for flexibility/testing
-      const overridePath = (req.query.path as string) || "";
+      const rawOverridePath = (req.query.path as string) || "";
       const homeDir = os.homedir();
+      // Expand ~ to the user's home directory
+      const overridePath = rawOverridePath.startsWith("~/")
+        ? path.join(homeDir, rawOverridePath.slice(2))
+        : rawOverridePath === "~"
+          ? homeDir
+          : rawOverridePath;
       const defaultPath = path.join(homeDir, ".cursor", "mcp.json");
       const targetPath = overridePath || defaultPath;
+
+      console.log("[update-mcp-config] rawOverridePath:", rawOverridePath);
+      console.log("[update-mcp-config] overridePath:", overridePath);
+      console.log("[update-mcp-config] targetPath:", targetPath);
 
       // Create the updated configuration
       const updatedConfig = {
         mcpServers: servers,
       };
+
+      console.log("[update-mcp-config] Writing to:", targetPath);
+      console.log(
+        "[update-mcp-config] Config:",
+        JSON.stringify(updatedConfig, null, 2),
+      );
 
       // Write the updated configuration to file
       await fs.writeFile(
@@ -1214,6 +1238,8 @@ app.post(
         "utf8",
       );
 
+      console.log("[update-mcp-config] Write successful");
+
       res.json({
         success: true,
         message: "MCP configuration updated successfully",
@@ -1221,7 +1247,7 @@ app.post(
         serverCount: Object.keys(servers).length,
       });
     } catch (error: any) {
-      console.error("Error updating MCP config:", error);
+      console.error("[update-mcp-config] Error:", error);
       res.status(500).json({
         error: "Internal Server Error",
         message: error?.message || String(error),
