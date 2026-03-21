@@ -368,6 +368,11 @@ const Sidebar = ({
         const servers = (configData.servers || configData.mcpServers) as
           | Record<string, any>
           | undefined;
+
+        if (typeof data.path === "string" && data.path) {
+          setConfigFilePath(data.path);
+        }
+
         if (!servers) return;
 
         setLoadedServers(servers);
@@ -375,9 +380,6 @@ const Sidebar = ({
         if (names.length > 0) {
           setSelectedServer(names[0]);
           applyServerConfig(servers[names[0]]);
-        }
-        if (typeof data.path === "string" && data.path) {
-          setConfigFilePath(data.path);
         }
 
         if (configPath) {
