@@ -26,6 +26,7 @@ import express from "express";
 import path from "node:path";
 import os from "node:os";
 import { promises as fs } from "node:fs";
+import { exec } from "node:child_process";
 import { findActualExecutable } from "spawn-rx";
 import mcpProxy from "./mcpProxy.js";
 import logger from "./logger.js";
@@ -1545,6 +1546,74 @@ app.post(
       res.status(500).json({
         error: "Internal Server Error",
         message: error instanceof Error ? error.message : String(error),
+      });
+    }
+  },
+);
+
+// Open log folder in OS file manager
+app.post(
+  "/logs/open",
+  originValidationMiddleware,
+  authMiddleware,
+  (req, res) => {
+    try {
+      const logsDir = logger.getLogsDirectory();
+
+      logger.info(`Opening log folder: ${logsDir}`);
+      logger.info(`Platform: ${process.platform}`);
+
+      // Determine the command based on platform
+      const platform = process.platform;
+      let command: string;
+      if (platform === "darwin") {
+        command = `open "${logsDir}"`;
+      } else if (platform === "win32") {
+        command = `explorer "${logsDir}"`;
+      } else {
+        command = `xdg-open "${logsDir}"`;
+      }
+
+      logger.info(`Executing command: ${command}`);
+
+      exec(command, (error: any, stdout: string, stderr: string) => {
+        if (error) {
+          logger.error(`Error opening log folder. Command: ${command}`);
+          logger.error(`Error message: ${error.message}`);
+          logger.error(`Error code: ${error.code}`);
+          logger.error(`Error stack: ${error.stack}`);
+          if (stderr) {
+            logger.error(`stderr: ${stderr}`);
+          }
+          res.status(500).json({
+            error: "Internal Server Error",
+            message: error.message,
+            command,
+            logsDirectory: logsDir,
+            code: error.code,
+            stderr,
+          });
+          return;
+        }
+        logger.info(`Log folder opened successfully: ${logsDir}`);
+        if (stdout) {
+          logger.info(`stdout: ${stdout}`);
+        }
+        res.json({
+          success: true,
+          message: "Log folder opened",
+          logsDirectory: logsDir,
+        });
+      });
+    } catch (error: any) {
+      logger.error(
+        `Error opening log folder (caught): ${error?.message || String(error)}`,
+      );
+      logger.error(`Stack: ${error?.stack}`);
+      res.status(500).json({
+        error: "Internal Server Error",
+        message: error?.message || String(error),
+        stack: error?.stack,
       });
     }
   },

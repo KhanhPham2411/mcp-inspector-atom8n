@@ -166,6 +166,28 @@ export class ServerLogUtils {
   }
 
   /**
+   * Open the log folder in the OS file manager
+   */
+  async openLogFolder(): Promise<{
+    success: boolean;
+    message: string;
+    logsDirectory: string;
+  }> {
+    const { baseUrl, headers } = this.getApiConfig();
+
+    const response = await fetch(`${baseUrl}/logs/open`, {
+      method: "POST",
+      headers,
+    });
+
+    if (!response.ok) {
+      throw new Error(`Failed to open log folder: ${response.statusText}`);
+    }
+
+    return await response.json();
+  }
+
+  /**
    * Clean up old log files
    */
   async cleanupLogs(daysToKeep: number = 7): Promise<LogCleanupResponse> {

@@ -1,14 +1,32 @@
 import { useState, useEffect, useCallback } from "react";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
-import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
-import { Dialog, DialogContent, DialogDescription, DialogHeader, DialogTitle } from "@/components/ui/dialog";
+import {
+  Card,
+  CardContent,
+  CardDescription,
+  CardHeader,
+  CardTitle,
+} from "@/components/ui/card";
+import {
+  Dialog,
+  DialogContent,
+  DialogDescription,
+  DialogHeader,
+  DialogTitle,
+} from "@/components/ui/dialog";
 import { Label } from "@/components/ui/label";
-import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
-import { 
-  FileText, 
-  Trash2, 
-  RefreshCw, 
+import {
+  Select,
+  SelectContent,
+  SelectItem,
+  SelectTrigger,
+  SelectValue,
+} from "@/components/ui/select";
+import {
+  FileText,
+  Trash2,
+  RefreshCw,
   Search,
   ChevronLeft,
   ChevronRight,
@@ -17,35 +35,58 @@ import {
   Info,
   AlertTriangle,
   Bug,
-  Loader2
+  Loader2,
+  FolderOpen,
 } from "lucide-react";
 import { useToast } from "../lib/hooks/useToast";
 import { InspectorConfig } from "@/lib/configurationTypes";
 import { createServerLogUtils, LogFile, LogContent } from "@/utils/logUtils";
 
 interface LogLevelDisplay {
-  level: 'info' | 'warn' | 'error' | 'debug';
+  level: "info" | "warn" | "error" | "debug";
   label: string;
   icon: React.ReactNode;
   color: string;
 }
 
 const LOG_LEVELS: LogLevelDisplay[] = [
-  { level: 'info', label: 'Info', icon: <Info className="w-4 h-4" />, color: 'text-blue-600' },
-  { level: 'warn', label: 'Warning', icon: <AlertTriangle className="w-4 h-4" />, color: 'text-yellow-600' },
-  { level: 'error', label: 'Error', icon: <AlertCircle className="w-4 h-4" />, color: 'text-red-600' },
-  { level: 'debug', label: 'Debug', icon: <Bug className="w-4 h-4" />, color: 'text-gray-600' }
+  {
+    level: "info",
+    label: "Info",
+    icon: <Info className="w-4 h-4" />,
+    color: "text-blue-600",
+  },
+  {
+    level: "warn",
+    label: "Warning",
+    icon: <AlertTriangle className="w-4 h-4" />,
+    color: "text-yellow-600",
+  },
+  {
+    level: "error",
+    label: "Error",
+    icon: <AlertCircle className="w-4 h-4" />,
+    color: "text-red-600",
+  },
+  {
+    level: "debug",
+    label: "Debug",
+    icon: <Bug className="w-4 h-4" />,
+    color: "text-gray-600",
+  },
 ];
 
 const LoggerTab = ({ config }: { config: InspectorConfig }) => {
   const [logFiles, setLogFiles] = useState<LogFile[]>([]);
-  const [selectedFile, setSelectedFile] = useState<string>('');
+  const [selectedFile, setSelectedFile] = useState<string>("");
   const [logContent, setLogContent] = useState<LogContent | null>(null);
   const [isLoading, setIsLoading] = useState(false);
-  const [searchQuery, setSearchQuery] = useState('');
+  const [searchQuery, setSearchQuery] = useState("");
   const [showTestDialog, setShowTestDialog] = useState(false);
-  const [testLevel, setTestLevel] = useState<'info' | 'warn' | 'error' | 'debug'>('info');
-  const [testMessage, setTestMessage] = useState('Test log message');
+  const [testLevel, setTestLevel] = useState<
+    "info" | "warn" | "error" | "debug"
+  >("info");
+  const [testMessage, setTestMessage] = useState("Test log message");
   const [currentPage, setCurrentPage] = useState(1);
   const [pageSize, setPageSize] = useState(50);
   const { toast } = useToast();
@@ -55,9 +96,9 @@ const LoggerTab = ({ config }: { config: InspectorConfig }) => {
     try {
       const logUtils = createServerLogUtils(config);
       const data = await logUtils.getLogFiles();
-      
+
       setLogFiles(data.files.map((file: string) => ({ name: file })));
-      
+
       // Auto-select the first file if none selected
       if (!selectedFile && data.files.length > 0) {
         setSelectedFile(data.files[0]);
@@ -65,35 +106,39 @@ const LoggerTab = ({ config }: { config: InspectorConfig }) => {
     } catch (error) {
       toast({
         title: "Error",
-        description: `Failed to fetch log files: ${error instanceof Error ? error.message : 'Unknown error'}`,
-        variant: "destructive"
+        description: `Failed to fetch log files: ${error instanceof Error ? error.message : "Unknown error"}`,
+        variant: "destructive",
       });
     }
   }, [selectedFile, toast, config]);
 
   // Fetch log content
-  const fetchLogContent = useCallback(async (filename: string, page: number = 1, limit: number = 100) => {
-    if (!filename) return;
+  const fetchLogContent = useCallback(
+    async (filename: string, page: number = 1, limit: number = 100) => {
+      if (!filename) return;
 
-    setIsLoading(true);
-    try {
-      const logUtils = createServerLogUtils(config);
-      const data = filename === 'current' 
-        ? await logUtils.getCurrentLogContent(page, limit)
-        : await logUtils.getLogFileContent(filename, page, limit);
-      
-      setLogContent(data);
-      setCurrentPage(page);
-    } catch (error) {
-      toast({
-        title: "Error",
-        description: `Failed to fetch log content: ${error instanceof Error ? error.message : 'Unknown error'}`,
-        variant: "destructive"
-      });
-    } finally {
-      setIsLoading(false);
-    }
-  }, [toast, config]);
+      setIsLoading(true);
+      try {
+        const logUtils = createServerLogUtils(config);
+        const data =
+          filename === "current"
+            ? await logUtils.getCurrentLogContent(page, limit)
+            : await logUtils.getLogFileContent(filename, page, limit);
+
+        setLogContent(data);
+        setCurrentPage(page);
+      } catch (error) {
+        toast({
+          title: "Error",
+          description: `Failed to fetch log content: ${error instanceof Error ? error.message : "Unknown error"}`,
+          variant: "destructive",
+        });
+      } finally {
+        setIsLoading(false);
+      }
+    },
+    [toast, config],
+  );
 
   // Write test log
   const writeTestLog = useCallback(async () => {
@@ -101,12 +146,12 @@ const LoggerTab = ({ config }: { config: InspectorConfig }) => {
       const logUtils = createServerLogUtils(config);
       await logUtils.writeLog({
         level: testLevel,
-        message: testMessage
+        message: testMessage,
       });
 
       toast({
         title: "Success",
-        description: `Test log written with level: ${testLevel}`
+        description: `Test log written with level: ${testLevel}`,
       });
 
       // Refresh current log content
@@ -116,44 +161,76 @@ const LoggerTab = ({ config }: { config: InspectorConfig }) => {
     } catch (error) {
       toast({
         title: "Error",
-        description: `Failed to write test log: ${error instanceof Error ? error.message : 'Unknown error'}`,
-        variant: "destructive"
+        description: `Failed to write test log: ${error instanceof Error ? error.message : "Unknown error"}`,
+        variant: "destructive",
       });
     }
-  }, [testLevel, testMessage, selectedFile, currentPage, pageSize, fetchLogContent, toast, config]);
+  }, [
+    testLevel,
+    testMessage,
+    selectedFile,
+    currentPage,
+    pageSize,
+    fetchLogContent,
+    toast,
+    config,
+  ]);
 
-  // Clean up old logs
-  const cleanupLogs = useCallback(async (daysToKeep: number = 7) => {
+  // Open log folder in OS file manager
+  const openLogFolder = useCallback(async () => {
     try {
       const logUtils = createServerLogUtils(config);
-      await logUtils.cleanupLogs(daysToKeep);
+      await logUtils.openLogFolder();
 
       toast({
         title: "Success",
-        description: `Cleaned up log files older than ${daysToKeep} days`
+        description: "Log folder opened in file manager",
       });
-
-      // Refresh log files
-      await fetchLogFiles();
     } catch (error) {
       toast({
         title: "Error",
-        description: `Failed to cleanup logs: ${error instanceof Error ? error.message : 'Unknown error'}`,
-        variant: "destructive"
+        description: `Failed to open log folder: ${error instanceof Error ? error.message : "Unknown error"}`,
+        variant: "destructive",
       });
     }
-  }, [fetchLogFiles, toast, config]);
+  }, [toast, config]);
+
+  // Clean up old logs
+  const cleanupLogs = useCallback(
+    async (daysToKeep: number = 7) => {
+      try {
+        const logUtils = createServerLogUtils(config);
+        await logUtils.cleanupLogs(daysToKeep);
+
+        toast({
+          title: "Success",
+          description: `Cleaned up log files older than ${daysToKeep} days`,
+        });
+
+        // Refresh log files
+        await fetchLogFiles();
+      } catch (error) {
+        toast({
+          title: "Error",
+          description: `Failed to cleanup logs: ${error instanceof Error ? error.message : "Unknown error"}`,
+          variant: "destructive",
+        });
+      }
+    },
+    [fetchLogFiles, toast, config],
+  );
 
   // Filter log content based on search query
   const filteredContent = logContent?.content
     ? logContent.content
-        .split('\n')
-        .filter(line => 
-          searchQuery === '' || 
-          line.toLowerCase().includes(searchQuery.toLowerCase())
+        .split("\n")
+        .filter(
+          (line) =>
+            searchQuery === "" ||
+            line.toLowerCase().includes(searchQuery.toLowerCase()),
         )
-        .join('\n')
-    : '';
+        .join("\n")
+    : "";
 
   // Load log files on component mount
   useEffect(() => {
@@ -187,6 +264,14 @@ const LoggerTab = ({ config }: { config: InspectorConfig }) => {
           >
             <Play className="w-4 h-4" />
             Test Log
+          </Button>
+          <Button
+            variant="outline"
+            onClick={openLogFolder}
+            className="flex items-center gap-2"
+          >
+            <FolderOpen className="w-4 h-4" />
+            Open Log
           </Button>
           <Button
             variant="outline"
@@ -252,19 +337,23 @@ const LoggerTab = ({ config }: { config: InspectorConfig }) => {
             <div>
               <CardTitle className="flex items-center gap-2">
                 <FileText className="w-5 h-5" />
-                {selectedFile === 'current' ? 'Current Log' : selectedFile}
+                {selectedFile === "current" ? "Current Log" : selectedFile}
               </CardTitle>
               <CardDescription>
                 {logContent?.pagination && (
                   <>
-                    Page {logContent.pagination.page} of {logContent.pagination.totalPages} 
-                    ({logContent.pagination.totalLines} total lines)
+                    Page {logContent.pagination.page} of{" "}
+                    {logContent.pagination.totalPages}(
+                    {logContent.pagination.totalLines} total lines)
                   </>
                 )}
               </CardDescription>
             </div>
             <div className="flex items-center gap-2">
-              <Select value={pageSize.toString()} onValueChange={(value) => setPageSize(parseInt(value))}>
+              <Select
+                value={pageSize.toString()}
+                onValueChange={(value) => setPageSize(parseInt(value))}
+              >
                 <SelectTrigger className="w-20">
                   <SelectValue />
                 </SelectTrigger>
@@ -278,7 +367,9 @@ const LoggerTab = ({ config }: { config: InspectorConfig }) => {
               <Button
                 variant="outline"
                 size="sm"
-                onClick={() => fetchLogContent(selectedFile, currentPage - 1, pageSize)}
+                onClick={() =>
+                  fetchLogContent(selectedFile, currentPage - 1, pageSize)
+                }
                 disabled={!logContent?.pagination?.hasPrev || isLoading}
               >
                 <ChevronLeft className="w-4 h-4" />
@@ -286,7 +377,9 @@ const LoggerTab = ({ config }: { config: InspectorConfig }) => {
               <Button
                 variant="outline"
                 size="sm"
-                onClick={() => fetchLogContent(selectedFile, currentPage + 1, pageSize)}
+                onClick={() =>
+                  fetchLogContent(selectedFile, currentPage + 1, pageSize)
+                }
                 disabled={!logContent?.pagination?.hasNext || isLoading}
               >
                 <ChevronRight className="w-4 h-4" />
@@ -303,7 +396,7 @@ const LoggerTab = ({ config }: { config: InspectorConfig }) => {
           ) : (
             <div className="bg-gray-900 text-green-400 p-4 rounded-lg font-mono text-sm overflow-auto max-h-96">
               <pre className="whitespace-pre-wrap">
-                {filteredContent || 'No log content available'}
+                {filteredContent || "No log content available"}
               </pre>
             </div>
           )}
@@ -322,7 +415,10 @@ const LoggerTab = ({ config }: { config: InspectorConfig }) => {
           <div className="space-y-4">
             <div>
               <Label htmlFor="test-level">Log Level</Label>
-              <Select value={testLevel} onValueChange={(value: any) => setTestLevel(value)}>
+              <Select
+                value={testLevel}
+                onValueChange={(value: any) => setTestLevel(value)}
+              >
                 <SelectTrigger>
                   <SelectValue />
                 </SelectTrigger>
@@ -348,12 +444,13 @@ const LoggerTab = ({ config }: { config: InspectorConfig }) => {
               />
             </div>
             <div className="flex justify-end gap-2">
-              <Button variant="outline" onClick={() => setShowTestDialog(false)}>
+              <Button
+                variant="outline"
+                onClick={() => setShowTestDialog(false)}
+              >
                 Cancel
               </Button>
-              <Button onClick={writeTestLog}>
-                Write Log
-              </Button>
+              <Button onClick={writeTestLog}>Write Log</Button>
             </div>
           </div>
         </DialogContent>
