@@ -481,26 +481,65 @@ const Sidebar = ({
         { configRefreshKey, _configFilePath },
       );
 
-      // Re-load the current config file to refresh loadedServers
-      if (_configFilePath) {
-        loadDefaultConfig(_configFilePath);
-      }
-
-      // Re-fetch server counts for all config paths
-      const refetchCounts = async () => {
+      const refreshAll = async () => {
         const baseUrl = getMCPProxyAddress(config);
         const { token, header } = getMCPProxyAuthToken(config);
-        const counts: Record<string, number> = {};
+        const authHeaders = {
+          "Content-Type": "application/json",
+          [header]: token ? `Bearer ${token}` : "",
+        };
 
+        // 1) Silently re-load the current config file to refresh loadedServers
+        if (_configFilePath) {
+          try {
+            // Find the matching tilde path, or use the full path as-is
+            const configPathParam =
+              CONFIG_PATHS.find((cp) =>
+                _configFilePath.endsWith(cp.replace("~", "")),
+              ) || _configFilePath;
+
+            const url = `${baseUrl}/mcp-config?path=${encodeURIComponent(configPathParam)}`;
+            const resp = await fetch(url, {
+              method: "GET",
+              headers: authHeaders,
+            });
+            if (resp.ok) {
+              const data = await resp.json();
+              const configData = data.config as any;
+              const servers = (configData.servers || configData.mcpServers) as
+                | Record<string, any>
+                | undefined;
+
+              if (servers && Object.keys(servers).length > 0) {
+                console.log(
+                  "[Sidebar] Refreshed loadedServers:",
+                  Object.keys(servers),
+                );
+                setLoadedServers(servers);
+                // Keep current selection if it still exists, otherwise select first
+                const names = Object.keys(servers);
+                setSelectedServer((prev) =>
+                  names.includes(prev) ? prev : names[0] || "",
+                );
+              } else {
+                console.log("[Sidebar] Refresh: no servers found, clearing");
+                setLoadedServers({});
+                setSelectedServer("");
+              }
+            }
+          } catch (err) {
+            console.error("[Sidebar] Error refreshing loadedServers:", err);
+          }
+        }
+
+        // 2) Re-fetch server counts for all known config paths
+        const counts: Record<string, number> = {};
         for (const cfgPath of CONFIG_PATHS) {
           try {
             const url = `${baseUrl}/mcp-config?path=${encodeURIComponent(cfgPath)}`;
             const resp = await fetch(url, {
               method: "GET",
-              headers: {
-                "Content-Type": "application/json",
-                [header]: token ? `Bearer ${token}` : "",
-              },
+              headers: authHeaders,
             });
             if (resp.ok) {
               const data = await resp.json();
@@ -515,7 +554,7 @@ const Sidebar = ({
         setConfigCounts(counts);
       };
 
-      refetchCounts();
+      refreshAll();
     }
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [configRefreshKey]);
