@@ -126,7 +126,9 @@ const Sidebar = ({
   const [selectedServer, setSelectedServer] = useState<string>("");
   const [isLoadingDefault, setIsLoadingDefault] = useState<boolean>(false);
   const [configCounts, setConfigCounts] = useState<Record<string, number>>({});
-  const [activeConfigPath, setActiveConfigPath] = useState<string>("");
+  const [activeConfigPath, setActiveConfigPath] = useState<string>(
+    () => localStorage.getItem("activeConfigPath") || "",
+  );
   const hasLoadedConfig = useRef(false);
   const { toast } = useToast();
 
@@ -846,6 +848,10 @@ const Sidebar = ({
                       size="sm"
                       onClick={() => {
                         setActiveConfigPath("~/.cursor/mcp.json");
+                        localStorage.setItem(
+                          "activeConfigPath",
+                          "~/.cursor/mcp.json",
+                        );
                         loadDefaultConfig("~/.cursor/mcp.json");
                       }}
                       disabled={isLoadingDefault}
@@ -875,6 +881,10 @@ const Sidebar = ({
                       size="sm"
                       onClick={() => {
                         setActiveConfigPath(
+                          "~/.gemini/antigravity/mcp_config.json",
+                        );
+                        localStorage.setItem(
+                          "activeConfigPath",
                           "~/.gemini/antigravity/mcp_config.json",
                         );
                         loadDefaultConfig(
