@@ -132,50 +132,7 @@ const Sidebar = ({
     () => localStorage.getItem("activeConfigPath") || "",
   );
   const hasLoadedConfig = useRef(false);
-  const customFileInputRef = useRef<HTMLInputElement>(null);
   const { toast } = useToast();
-
-  // Load configuration from a picked file
-  const loadConfigFromFile = useCallback(
-    (file: File) => {
-      file.text().then((text) => {
-        try {
-          const configData = JSON.parse(text);
-          const servers = (configData.servers || configData.mcpServers) as
-            | Record<string, any>
-            | undefined;
-
-          if (servers && Object.keys(servers).length > 0) {
-            setLoadedServers(servers);
-            const names = Object.keys(servers);
-            setSelectedServer(names[0]);
-            applyServerConfig(servers[names[0]]);
-            setActiveConfigPath(file.name);
-            localStorage.setItem("activeConfigPath", file.name);
-            setConfigFilePath(file.name);
-            toast({
-              title: "Configuration loaded",
-              description: `Loaded ${names.length} server(s) from ${file.name}`,
-            });
-          } else {
-            toast({
-              title: "Invalid config",
-              description: "No 'servers' or 'mcpServers' found in the file.",
-              variant: "destructive",
-            });
-          }
-        } catch (err) {
-          toast({
-            title: "Error",
-            description: `Failed to parse JSON: ${err instanceof Error ? err.message : String(err)}`,
-            variant: "destructive",
-          });
-        }
-      });
-    },
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-    [toast, setConfigFilePath],
-  );
 
   // Apply server configuration to the form
   const applyServerConfig = useCallback(
@@ -794,7 +751,38 @@ const Sidebar = ({
                     <Button
                       variant="outline"
                       size="sm"
-                      onClick={() => customFileInputRef.current?.click()}
+                      onClick={async () => {
+                        try {
+                          const baseUrl = getMCPProxyAddress(config);
+                          const { token, header } =
+                            getMCPProxyAuthToken(config);
+                          const resp = await fetch(`${baseUrl}/choose-file`, {
+                            method: "POST",
+                            headers: {
+                              "Content-Type": "application/json",
+                              [header]: token ? `Bearer ${token}` : "",
+                            },
+                          });
+                          if (resp.ok) {
+                            const data = await resp.json();
+                            if (!data.cancelled && data.path) {
+                              console.log(
+                                "[Custom] File chosen:",
+                                data.path,
+                                data.absolutePath,
+                              );
+                              setActiveConfigPath(data.path);
+                              localStorage.setItem(
+                                "activeConfigPath",
+                                data.path,
+                              );
+                              loadDefaultConfig(data.path);
+                            }
+                          }
+                        } catch (err) {
+                          console.error("[Custom] Error choosing file:", err);
+                        }
+                      }}
                       disabled={isLoadingDefault}
                       className={`flex items-center gap-1.5 px-2 ${activeConfigPath && activeConfigPath !== "~/.cursor/mcp.json" && activeConfigPath !== "~/.gemini/antigravity/mcp_config.json" ? "ring-2 ring-green-500" : ""}`}
                     >
@@ -808,63 +796,38 @@ const Sidebar = ({
                   </TooltipTrigger>
                   <TooltipContent>Pick a custom MCP config file</TooltipContent>
                 </Tooltip>
-                <input
-                  ref={customFileInputRef}
-                  type="file"
-                  accept=".json"
-                  className="hidden"
-                  onChange={(e) => {
-                    const file = e.target.files?.[0];
-                    if (file) {
-                      loadConfigFromFile(file);
-                    }
-                    e.target.value = "";
-                  }}
-                />
               </div>
-              {_configFilePath &&
-                !isLoadingDefault &&
-                (_configFilePath.startsWith("~") ||
-                  _configFilePath.startsWith("/")) && (
-                  <button
-                    className="flex items-center gap-1 text-xs text-blue-500 hover:text-blue-700 hover:underline cursor-pointer truncate max-w-full text-left"
-                    title="Open config folder"
-                    onClick={async () => {
-                      try {
-                        const baseUrl = getMCPProxyAddress(config);
-                        const { token, header } = getMCPProxyAuthToken(config);
-                        const tilePath =
-                          CONFIG_PATHS.find((cp) =>
-                            _configFilePath.endsWith(cp.replace("~", "")),
-                          ) || _configFilePath;
-                        await fetch(
-                          `${baseUrl}/open-config-folder?path=${encodeURIComponent(tilePath)}`,
-                          {
-                            method: "POST",
-                            headers: {
-                              "Content-Type": "application/json",
-                              [header]: token ? `Bearer ${token}` : "",
-                            },
+              {_configFilePath && !isLoadingDefault && (
+                <button
+                  className="flex items-center gap-1 text-xs text-blue-500 hover:text-blue-700 hover:underline cursor-pointer truncate max-w-full text-left"
+                  title="Open config folder"
+                  onClick={async () => {
+                    try {
+                      const baseUrl = getMCPProxyAddress(config);
+                      const { token, header } = getMCPProxyAuthToken(config);
+                      const tilePath =
+                        CONFIG_PATHS.find((cp) =>
+                          _configFilePath.endsWith(cp.replace("~", "")),
+                        ) || _configFilePath;
+                      await fetch(
+                        `${baseUrl}/open-config-folder?path=${encodeURIComponent(tilePath)}`,
+                        {
+                          method: "POST",
+                          headers: {
+                            "Content-Type": "application/json",
+                            [header]: token ? `Bearer ${token}` : "",
                           },
-                        );
-                      } catch (err) {
-                        console.error("Failed to open config folder:", err);
-                      }
-                    }}
-                  >
-                    <FolderOpen className="w-3 h-3 shrink-0" />
-                    <span className="truncate">{_configFilePath}</span>
-                  </button>
-                )}
-              {_configFilePath &&
-                !isLoadingDefault &&
-                !_configFilePath.startsWith("~") &&
-                !_configFilePath.startsWith("/") && (
-                  <span className="flex items-center gap-1 text-xs text-muted-foreground truncate max-w-full">
-                    <FileCog className="w-3 h-3 shrink-0" />
-                    <span className="truncate">{_configFilePath}</span>
-                  </span>
-                )}
+                        },
+                      );
+                    } catch (err) {
+                      console.error("Failed to open config folder:", err);
+                    }
+                  }}
+                >
+                  <FolderOpen className="w-3 h-3 shrink-0" />
+                  <span className="truncate">{_configFilePath}</span>
+                </button>
+              )}
             </div>
 
             {/* Server Selection Dropdown */}

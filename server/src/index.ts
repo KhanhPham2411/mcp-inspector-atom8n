@@ -1711,6 +1711,68 @@ app.post(
   },
 );
 
+// Open native file picker to choose an MCP config file
+app.post(
+  "/choose-file",
+  originValidationMiddleware,
+  authMiddleware,
+  (req, res) => {
+    try {
+      const platform = process.platform;
+      let command: string;
+
+      if (platform === "darwin") {
+        // macOS: use osascript to open a file picker dialog
+        command = `osascript -e 'POSIX path of (choose file of type {"public.json"} with prompt "Select MCP config file")'`;
+      } else if (platform === "win32") {
+        // Windows: use PowerShell to open a file dialog
+        command = `powershell -Command "Add-Type -AssemblyName System.Windows.Forms; $f = New-Object System.Windows.Forms.OpenFileDialog; $f.Filter = 'JSON files (*.json)|*.json'; $f.Title = 'Select MCP config file'; if ($f.ShowDialog() -eq 'OK') { $f.FileName }"`;
+      } else {
+        // Linux: use zenity
+        command = `zenity --file-selection --title="Select MCP config file" --file-filter="JSON files | *.json"`;
+      }
+
+      exec(command, (error: any, stdout: string, stderr: string) => {
+        if (error) {
+          // User cancelled the dialog
+          if (error.code === 1 || stderr.includes("User canceled")) {
+            res.json({ cancelled: true });
+            return;
+          }
+          logger.error(`Error choosing file: ${error.message}`);
+          res.status(500).json({
+            error: "Internal Server Error",
+            message: error.message,
+          });
+          return;
+        }
+
+        const filePath = stdout.trim();
+        if (!filePath) {
+          res.json({ cancelled: true });
+          return;
+        }
+
+        // Convert absolute path to tilde path for consistency
+        const homeDir = os.homedir();
+        const tildePath = filePath.startsWith(homeDir)
+          ? "~" + filePath.slice(homeDir.length)
+          : filePath;
+
+        logger.info(`File chosen: ${filePath} (tilde: ${tildePath})`);
+        res.json({ path: tildePath, absolutePath: filePath });
+      });
+    } catch (error: any) {
+      logger.error(
+        `Error choosing file (caught): ${error?.message || String(error)}`,
+      );
+      res.status(500).json({
+        error: "Internal Server Error",
+        message: error?.message || String(error),
+      });
+    }
+  },
+);
 const PORT = parseInt(
   process.env.SERVER_PORT || DEFAULT_MCP_PROXY_LISTEN_PORT,
   10,
