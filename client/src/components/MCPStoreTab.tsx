@@ -93,6 +93,7 @@ const MCPStoreTab = ({
   const [availableServers, setAvailableServers] = useState<MCPServer[]>([]);
   const [searchQuery, setSearchQuery] = useState("");
   const [isLoading, setIsLoading] = useState(false);
+  const [testingServer, setTestingServer] = useState<string | null>(null);
   const [showSourceConfig, setShowSourceConfig] = useState(false);
   const [newSource, setNewSource] = useState({
     name: "",
@@ -297,33 +298,41 @@ const MCPStoreTab = ({
   };
 
   const handleTestConnection = async (server: MCPServer) => {
-    const serverConfig = {
-      command: server.command,
-      args: server.args,
-      env: server.env,
-      disabled: server.disabled,
-      autoApprove: server.autoApprove,
-    };
+    const serverKey = `${server.name}-${server.command}`;
+    setTestingServer(serverKey);
 
-    // Log the test connection attempt to the server logs
-    await logInfo(
-      config,
-      `Testing connection to MCP server: ${server.name} (${server.command})`,
-      {
-        serverName: server.name,
+    try {
+      const serverConfig = {
         command: server.command,
         args: server.args,
-        source: "MCPStoreTab",
-      },
-    );
+        env: server.env,
+        disabled: server.disabled,
+        autoApprove: server.autoApprove,
+      };
 
-    if (onTestConnection) {
-      onTestConnection(serverConfig);
-    } else {
-      toast({
-        title: "Test Connection",
-        description: `Testing connection to ${server.name}...`,
-      });
+      // Log the test connection attempt to the server logs
+      await logInfo(
+        config,
+        `Testing connection to MCP server: ${server.name} (${server.command})`,
+        {
+          serverName: server.name,
+          command: server.command,
+          args: server.args,
+          source: "MCPStoreTab",
+        },
+      );
+
+      if (onTestConnection) {
+        onTestConnection(serverConfig);
+      } else {
+        toast({
+          title: "Test Connection",
+          description: `Testing connection to ${server.name}...`,
+        });
+      }
+    } finally {
+      // Keep spinner visible briefly so the user sees feedback
+      setTimeout(() => setTestingServer(null), 2000);
     }
   };
 
@@ -589,8 +598,15 @@ const MCPStoreTab = ({
                       size="sm"
                       onClick={() => handleTestConnection(server)}
                       title="Test connection to this server"
+                      disabled={
+                        testingServer === `${server.name}-${server.command}`
+                      }
                     >
-                      <Play className="w-4 h-4" />
+                      {testingServer === `${server.name}-${server.command}` ? (
+                        <Loader2 className="w-4 h-4 animate-spin" />
+                      ) : (
+                        <Play className="w-4 h-4" />
+                      )}
                     </Button>
                     <Button
                       variant="outline"
