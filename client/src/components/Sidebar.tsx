@@ -308,7 +308,13 @@ const Sidebar = ({
       const { token, header } = getMCPProxyAuthToken(config);
       const counts: Record<string, number> = {};
 
-      for (const cfgPath of CONFIG_PATHS) {
+      // Include custom activeConfigPath if it's not already in CONFIG_PATHS
+      const pathsToFetch = [...CONFIG_PATHS];
+      if (activeConfigPath && !CONFIG_PATHS.includes(activeConfigPath)) {
+        pathsToFetch.push(activeConfigPath);
+      }
+
+      for (const cfgPath of pathsToFetch) {
         try {
           const url = `${baseUrl}/mcp-config?path=${encodeURIComponent(cfgPath)}`;
           const resp = await fetch(url, {
@@ -331,7 +337,7 @@ const Sidebar = ({
     };
 
     fetchCounts();
-  }, [config]);
+  }, [config, activeConfigPath]);
 
   // Auto-load default configuration on component mount (once only)
   useEffect(() => {
@@ -792,6 +798,13 @@ const Sidebar = ({
                         <FileCog className="w-4 h-4" />
                       )}
                       Custom
+                      {activeConfigPath &&
+                      activeConfigPath !== "~/.cursor/mcp.json" &&
+                      activeConfigPath !==
+                        "~/.gemini/antigravity/mcp_config.json" &&
+                      configCounts[activeConfigPath] != null
+                        ? ` (${configCounts[activeConfigPath]})`
+                        : ""}
                     </Button>
                   </TooltipTrigger>
                   <TooltipContent>Pick a custom MCP config file</TooltipContent>
