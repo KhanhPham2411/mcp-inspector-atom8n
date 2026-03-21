@@ -94,6 +94,7 @@ const MCPStoreTab = ({
   const [searchQuery, setSearchQuery] = useState("");
   const [isLoading, setIsLoading] = useState(false);
   const [testingServer, setTestingServer] = useState<string | null>(null);
+  const [installingServer, setInstallingServer] = useState<string | null>(null);
   const [showSourceConfig, setShowSourceConfig] = useState(false);
   const [newSource, setNewSource] = useState({
     name: "",
@@ -234,7 +235,12 @@ const MCPStoreTab = ({
     );
   };
 
+  const getServerKey = (server: MCPServer) =>
+    `${server.name}-${server.command}`;
+
   const handleInstallServer = async (server: MCPServer) => {
+    const serverKey = getServerKey(server);
+    setInstallingServer(serverKey);
     try {
       // Generate the server configuration
       const serverConfig = {
@@ -294,6 +300,8 @@ const MCPStoreTab = ({
         description: `Failed to install server: ${error instanceof Error ? error.message : String(error)}`,
         variant: "destructive",
       });
+    } finally {
+      setTimeout(() => setInstallingServer(null), 500);
     }
   };
 
@@ -337,6 +345,8 @@ const MCPStoreTab = ({
   };
 
   const handleUninstallServer = async (server: MCPServer) => {
+    const serverKey = getServerKey(server);
+    setInstallingServer(serverKey);
     try {
       // Find the server name in current configuration
       const serverName = Object.keys(currentServers).find((name) => {
@@ -400,6 +410,8 @@ const MCPStoreTab = ({
         description: `Failed to uninstall server: ${error instanceof Error ? error.message : String(error)}`,
         variant: "destructive",
       });
+    } finally {
+      setTimeout(() => setInstallingServer(null), 500);
     }
   };
 
@@ -579,18 +591,32 @@ const MCPStoreTab = ({
                         className="flex-1"
                         size="sm"
                         variant="destructive"
+                        disabled={installingServer === getServerKey(server)}
                       >
-                        <Trash2 className="w-4 h-4 mr-2" />
-                        Uninstall
+                        {installingServer === getServerKey(server) ? (
+                          <Loader2 className="w-4 h-4 mr-2 animate-spin" />
+                        ) : (
+                          <Trash2 className="w-4 h-4 mr-2" />
+                        )}
+                        {installingServer === getServerKey(server)
+                          ? "Uninstalling..."
+                          : "Uninstall"}
                       </Button>
                     ) : (
                       <Button
                         onClick={() => handleInstallServer(server)}
                         className="flex-1"
                         size="sm"
+                        disabled={installingServer === getServerKey(server)}
                       >
-                        <Download className="w-4 h-4 mr-2" />
-                        Install
+                        {installingServer === getServerKey(server) ? (
+                          <Loader2 className="w-4 h-4 mr-2 animate-spin" />
+                        ) : (
+                          <Download className="w-4 h-4 mr-2" />
+                        )}
+                        {installingServer === getServerKey(server)
+                          ? "Installing..."
+                          : "Install"}
                       </Button>
                     )}
                     <Button
