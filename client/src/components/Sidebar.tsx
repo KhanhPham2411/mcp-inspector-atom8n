@@ -1,4 +1,4 @@
-import { useState, useCallback, useEffect } from "react";
+import { useState, useCallback, useEffect, useRef } from "react";
 import {
   Play,
   ChevronDown,
@@ -124,6 +124,7 @@ const Sidebar = ({
   const [selectedServer, setSelectedServer] = useState<string>("");
   const [isLoadingDefault, setIsLoadingDefault] = useState<boolean>(false);
   const [configCounts, setConfigCounts] = useState<Record<string, number>>({});
+  const hasLoadedConfig = useRef(false);
   const { toast } = useToast();
 
   // Reusable error reporter for copy actions
@@ -363,17 +364,37 @@ const Sidebar = ({
 
         const data = await resp.json();
         console.log("MCP config loaded:", data);
+        console.log("data.path:", data.path);
+        console.log("resp.ok:", resp.ok);
 
         const configData = data.config as any;
+        console.log("configData:", configData);
         const servers = (configData.servers || configData.mcpServers) as
           | Record<string, any>
           | undefined;
+        console.log("servers:", servers);
 
         if (typeof data.path === "string" && data.path) {
+          console.log("Setting configFilePath to:", data.path);
+          hasLoadedConfig.current = true;
           setConfigFilePath(data.path);
+        } else {
+          console.warn("data.path is not a valid string:", data.path);
         }
 
-        if (!servers) return;
+        if (!servers || Object.keys(servers).length === 0) {
+          console.log("No servers found, clearing loadedServers");
+          setLoadedServers({});
+          setSelectedServer("");
+          if (configPath) {
+            setConfigCounts((prev) => ({ ...prev, [configPath]: 0 }));
+            toast({
+              title: "Configuration loaded",
+              description: `Loaded 0 server(s) from ${configPath}`,
+            });
+          }
+          return;
+        }
 
         setLoadedServers(servers);
         const names = Object.keys(servers);
@@ -442,13 +463,13 @@ const Sidebar = ({
     fetchCounts();
   }, [config]);
 
-  // Auto-load default configuration on component mount
+  // Auto-load default configuration on component mount (once only)
   useEffect(() => {
-    // Only attempt to load if we haven't loaded any servers yet
-    if (Object.keys(loadedServers).length === 0) {
+    if (!hasLoadedConfig.current) {
       loadDefaultConfig();
     }
-  }, [loadDefaultConfig, loadedServers]);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, []);
 
   // Notify parent when servers change
   useEffect(() => {
