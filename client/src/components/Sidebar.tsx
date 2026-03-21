@@ -556,16 +556,14 @@ const Sidebar = ({
                   className="font-mono"
                   disabled={isLoadingDefault}
                 />
-                <div className="text-xs text-muted-foreground bg-muted p-2 rounded">
-                  <strong>Default path:</strong>{" "}
-                  C:\Users\%USERPROFILE%\.cursor\mcp.json
-                  {isLoadingDefault && (
-                    <div className="mt-1 text-blue-600">
+                {isLoadingDefault && (
+                  <div className="text-xs text-muted-foreground bg-muted p-2 rounded">
+                    <div className="text-blue-600">
                       <strong>Auto-loading...</strong> Please select your
                       mcp.json file
                     </div>
-                  )}
-                </div>
+                  </div>
+                )}
               </div>
               <div className="flex gap-2">
                 <Button
@@ -578,10 +576,6 @@ const Sidebar = ({
                   {isLoadingDefault ? "Loading..." : "Load Default Config"}
                 </Button>
               </div>
-              <p className="text-xs text-muted-foreground">
-                Load MCP configuration from a JSON file. The app will attempt to
-                load from the default Cursor path.
-              </p>
             </div>
 
             {/* Server Selection Dropdown */}
