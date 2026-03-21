@@ -123,6 +123,7 @@ const Sidebar = ({
   const [loadedServers, setLoadedServers] = useState<Record<string, any>>({});
   const [selectedServer, setSelectedServer] = useState<string>("");
   const [isLoadingDefault, setIsLoadingDefault] = useState<boolean>(false);
+  const [configCounts, setConfigCounts] = useState<Record<string, number>>({});
   const { toast } = useToast();
 
   // Reusable error reporter for copy actions
@@ -384,6 +385,7 @@ const Sidebar = ({
             title: "Configuration loaded",
             description: `Loaded ${names.length} server(s) from ${configPath}`,
           });
+          setConfigCounts((prev) => ({ ...prev, [configPath]: names.length }));
         }
       } catch (error) {
         console.error("Error loading config:", error);
@@ -400,6 +402,43 @@ const Sidebar = ({
     },
     [config, applyServerConfig, setConfigFilePath, toast],
   );
+
+  // Fetch server counts for known config paths on mount
+  const CONFIG_PATHS = [
+    "~/.cursor/mcp.json",
+    "~/.gemini/antigravity/mcp_config.json",
+  ];
+
+  useEffect(() => {
+    const fetchCounts = async () => {
+      const baseUrl = getMCPProxyAddress(config);
+      const { token, header } = getMCPProxyAuthToken(config);
+      const counts: Record<string, number> = {};
+
+      for (const cfgPath of CONFIG_PATHS) {
+        try {
+          const url = `${baseUrl}/mcp-config?path=${encodeURIComponent(cfgPath)}`;
+          const resp = await fetch(url, {
+            method: "GET",
+            headers: {
+              "Content-Type": "application/json",
+              [header]: token ? `Bearer ${token}` : "",
+            },
+          });
+          if (resp.ok) {
+            const data = await resp.json();
+            counts[cfgPath] = data.serverCount ?? 0;
+          }
+        } catch {
+          // silently ignore
+        }
+      }
+
+      setConfigCounts(counts);
+    };
+
+    fetchCounts();
+  }, [config]);
 
   // Auto-load default configuration on component mount
   useEffect(() => {
@@ -618,6 +657,9 @@ const Sidebar = ({
                         />
                       )}
                       Cursor
+                      {configCounts["~/.cursor/mcp.json"] != null
+                        ? ` (${configCounts["~/.cursor/mcp.json"]})`
+                        : ""}
                     </Button>
                   </TooltipTrigger>
                   <TooltipContent>~/.cursor/mcp.json</TooltipContent>
@@ -645,6 +687,10 @@ const Sidebar = ({
                         />
                       )}
                       Antigravity
+                      {configCounts["~/.gemini/antigravity/mcp_config.json"] !=
+                      null
+                        ? ` (${configCounts["~/.gemini/antigravity/mcp_config.json"]})`
+                        : ""}
                     </Button>
                   </TooltipTrigger>
                   <TooltipContent>
