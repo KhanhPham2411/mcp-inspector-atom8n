@@ -471,7 +471,8 @@ const Sidebar = ({
   // Auto-load default configuration on component mount (once only)
   useEffect(() => {
     if (!hasLoadedConfig.current) {
-      loadDefaultConfig();
+      const savedConfigPath = localStorage.getItem("activeConfigPath");
+      loadDefaultConfig(savedConfigPath || undefined);
     }
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
