@@ -974,15 +974,6 @@ app.get(
 
         const serverCount = servers ? Object.keys(servers).length : 0;
 
-        if (!servers || serverCount === 0) {
-          res.status(400).json({
-            error: "Bad Request",
-            message:
-              "No valid servers found in the MCP configuration file. Expected 'servers' or 'mcpServers' with at least one entry.",
-          });
-          return;
-        }
-
         res.json({
           path: targetPath,
           config: obj,
