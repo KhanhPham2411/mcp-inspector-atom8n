@@ -15,6 +15,7 @@ import {
   Copy,
   CheckCheck,
   Loader2,
+  FolderOpen,
 } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
@@ -835,11 +836,6 @@ const Sidebar = ({
                     </div>
                   </div>
                 )}
-                {_configFilePath && !isLoadingDefault && (
-                  <div className="text-xs text-muted-foreground truncate">
-                    {_configFilePath}
-                  </div>
-                )}
               </div>
               <div className="flex items-center gap-2">
                 <Tooltip>
@@ -916,6 +912,37 @@ const Sidebar = ({
                   </TooltipContent>
                 </Tooltip>
               </div>
+              {_configFilePath && !isLoadingDefault && (
+                <button
+                  className="flex items-center gap-1 text-xs text-blue-500 hover:text-blue-700 hover:underline cursor-pointer truncate max-w-full text-left"
+                  title="Open config folder"
+                  onClick={async () => {
+                    try {
+                      const baseUrl = getMCPProxyAddress(config);
+                      const { token, header } = getMCPProxyAuthToken(config);
+                      const tilePath =
+                        CONFIG_PATHS.find((cp) =>
+                          _configFilePath.endsWith(cp.replace("~", "")),
+                        ) || _configFilePath;
+                      await fetch(
+                        `${baseUrl}/open-config-folder?path=${encodeURIComponent(tilePath)}`,
+                        {
+                          method: "POST",
+                          headers: {
+                            "Content-Type": "application/json",
+                            [header]: token ? `Bearer ${token}` : "",
+                          },
+                        },
+                      );
+                    } catch (err) {
+                      console.error("Failed to open config folder:", err);
+                    }
+                  }}
+                >
+                  <FolderOpen className="w-3 h-3 shrink-0" />
+                  <span className="truncate">{_configFilePath}</span>
+                </button>
+              )}
             </div>
 
             {/* Server Selection Dropdown */}

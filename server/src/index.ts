@@ -1642,6 +1642,72 @@ app.post(
   },
 );
 
+// Open config file's folder in OS file manager
+app.post(
+  "/open-config-folder",
+  originValidationMiddleware,
+  authMiddleware,
+  (req, res) => {
+    try {
+      const rawPath = (req.query.path as string) || "";
+      if (!rawPath) {
+        res.status(400).json({
+          error: "Bad Request",
+          message: "Missing 'path' query parameter",
+        });
+        return;
+      }
+
+      const homeDir = os.homedir();
+      const expandedPath = rawPath.startsWith("~/")
+        ? path.join(homeDir, rawPath.slice(2))
+        : rawPath === "~"
+          ? homeDir
+          : rawPath;
+
+      const folderPath = path.dirname(expandedPath);
+
+      logger.info(`Opening config folder: ${folderPath}`);
+
+      const platform = process.platform;
+      let command: string;
+      if (platform === "darwin") {
+        command = `open "${folderPath}"`;
+      } else if (platform === "win32") {
+        command = `explorer "${folderPath}"`;
+      } else {
+        command = `xdg-open "${folderPath}"`;
+      }
+
+      exec(command, (error: any, stdout: string, stderr: string) => {
+        if (error) {
+          logger.error(`Error opening config folder: ${error.message}`);
+          res.status(500).json({
+            error: "Internal Server Error",
+            message: error.message,
+            command,
+            folder: folderPath,
+          });
+          return;
+        }
+        res.json({
+          success: true,
+          message: "Config folder opened",
+          folder: folderPath,
+        });
+      });
+    } catch (error: any) {
+      logger.error(
+        `Error opening config folder (caught): ${error?.message || String(error)}`,
+      );
+      res.status(500).json({
+        error: "Internal Server Error",
+        message: error?.message || String(error),
+      });
+    }
+  },
+);
+
 const PORT = parseInt(
   process.env.SERVER_PORT || DEFAULT_MCP_PROXY_LISTEN_PORT,
   10,
