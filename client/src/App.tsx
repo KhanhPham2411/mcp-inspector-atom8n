@@ -204,6 +204,7 @@ const App = () => {
   >([]);
   const [isAuthDebuggerVisible, setIsAuthDebuggerVisible] = useState(false);
   const [currentServers, setCurrentServers] = useState<Record<string, any>>({});
+  const [configRefreshKey, setConfigRefreshKey] = useState(0);
 
   const [authState, setAuthState] =
     useState<AuthDebuggerState>(EMPTY_DEBUGGER_STATE);
@@ -1041,6 +1042,7 @@ const App = () => {
           onServersChange={setCurrentServers}
           connectionType={connectionType}
           setConnectionType={setConnectionType}
+          configRefreshKey={configRefreshKey}
         />
         <div
           onMouseDown={handleSidebarDragStart}
@@ -1293,6 +1295,9 @@ const App = () => {
                         onServersChange={setCurrentServers}
                         onTestConnection={handleTestConnection}
                         configFilePath={configFilePath}
+                        onConfigFileUpdated={() =>
+                          setConfigRefreshKey((k) => k + 1)
+                        }
                       />
                     </TabsContent>
                     <TabsContent value="logger">
@@ -1333,6 +1338,7 @@ const App = () => {
                   onServersChange={setCurrentServers}
                   onTestConnection={handleTestConnection}
                   configFilePath={configFilePath}
+                  onConfigFileUpdated={() => setConfigRefreshKey((k) => k + 1)}
                 />
               </TabsContent>
               <TabsContent value="logger">

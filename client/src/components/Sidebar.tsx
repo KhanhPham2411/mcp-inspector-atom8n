@@ -81,6 +81,7 @@ interface SidebarProps {
   onServersChange?: (servers: Record<string, any>) => void;
   connectionType: "direct" | "proxy";
   setConnectionType: (type: "direct" | "proxy") => void;
+  configRefreshKey?: number;
 }
 
 const Sidebar = ({
@@ -111,6 +112,7 @@ const Sidebar = ({
   config,
   setConfig,
   onServersChange,
+  configRefreshKey,
 }: SidebarProps) => {
   const [theme, setTheme] = useTheme();
   const [activeTab, setActiveTab] = useState<"file" | "manual">("file");
@@ -470,6 +472,53 @@ const Sidebar = ({
     }
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
+
+  // Refresh config data when configRefreshKey changes (triggered by MCP Store install/uninstall)
+  useEffect(() => {
+    if (configRefreshKey && configRefreshKey > 0) {
+      console.log(
+        "[Sidebar] configRefreshKey changed, re-fetching config and counts",
+        { configRefreshKey, _configFilePath },
+      );
+
+      // Re-load the current config file to refresh loadedServers
+      if (_configFilePath) {
+        loadDefaultConfig(_configFilePath);
+      }
+
+      // Re-fetch server counts for all config paths
+      const refetchCounts = async () => {
+        const baseUrl = getMCPProxyAddress(config);
+        const { token, header } = getMCPProxyAuthToken(config);
+        const counts: Record<string, number> = {};
+
+        for (const cfgPath of CONFIG_PATHS) {
+          try {
+            const url = `${baseUrl}/mcp-config?path=${encodeURIComponent(cfgPath)}`;
+            const resp = await fetch(url, {
+              method: "GET",
+              headers: {
+                "Content-Type": "application/json",
+                [header]: token ? `Bearer ${token}` : "",
+              },
+            });
+            if (resp.ok) {
+              const data = await resp.json();
+              counts[cfgPath] = data.serverCount ?? 0;
+            }
+          } catch {
+            // silently ignore
+          }
+        }
+
+        console.log("[Sidebar] Updated configCounts:", counts);
+        setConfigCounts(counts);
+      };
+
+      refetchCounts();
+    }
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [configRefreshKey]);
 
   // Notify parent when servers change
   useEffect(() => {

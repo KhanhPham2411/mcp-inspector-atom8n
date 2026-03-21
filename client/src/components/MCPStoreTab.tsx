@@ -76,6 +76,7 @@ interface MCPStoreTabProps {
   onServersChange?: (servers: Record<string, ServerConfig>) => void;
   onTestConnection?: (serverConfig: ServerConfig) => void;
   configFilePath?: string;
+  onConfigFileUpdated?: () => void;
 }
 
 const MCPStoreTab = ({
@@ -84,6 +85,7 @@ const MCPStoreTab = ({
   onServersChange,
   onTestConnection,
   configFilePath,
+  onConfigFileUpdated,
 }: MCPStoreTabProps) => {
   const [sources, setSources] = useState<MCPSource[]>([
     {
@@ -330,6 +332,12 @@ const MCPStoreTab = ({
         title: "Server Installed",
         description: `${server.name} has been added to your MCP configuration file as "${finalServerName}".`,
       });
+
+      // Notify parent to refresh sidebar config counts & server list
+      if (onConfigFileUpdated) {
+        console.log("[MCPStore] Calling onConfigFileUpdated");
+        onConfigFileUpdated();
+      }
     } catch (error) {
       console.error("[MCPStore] Install error:", error);
       toast({
@@ -461,6 +469,12 @@ const MCPStoreTab = ({
           title: "Server Uninstalled",
           description: `${server.name} (${serverName}) has been removed from your MCP configuration file.`,
         });
+
+        // Notify parent to refresh sidebar config counts & server list
+        if (onConfigFileUpdated) {
+          console.log("[MCPStore] Calling onConfigFileUpdated after uninstall");
+          onConfigFileUpdated();
+        }
       } else {
         console.warn(
           "[MCPStore] Server not found in currentServers for uninstall",
