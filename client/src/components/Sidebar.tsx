@@ -258,10 +258,6 @@ const Sidebar = ({
           setSelectedServer("");
           if (configPath) {
             setConfigCounts((prev) => ({ ...prev, [configPath]: 0 }));
-            toast({
-              title: "Configuration loaded",
-              description: `Loaded 0 server(s) from ${configPath}`,
-            });
           }
           return;
         }
@@ -274,10 +270,6 @@ const Sidebar = ({
         }
 
         if (configPath) {
-          toast({
-            title: "Configuration loaded",
-            description: `Loaded ${names.length} server(s) from ${configPath}`,
-          });
           setConfigCounts((prev) => ({ ...prev, [configPath]: names.length }));
         }
       } catch (error) {
