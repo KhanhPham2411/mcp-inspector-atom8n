@@ -658,7 +658,7 @@ const Sidebar = ({
     selectedServer,
   );
 
-  const configBtnClass = "flex items-center gap-1.5 px-[15px]";
+  const configBtnClass = "flex items-center gap-1.5 px-[10px]";
 
   return (
     <div className="bg-card border-r border-border flex flex-col h-full">
@@ -685,7 +685,7 @@ const Sidebar = ({
             {/* Configuration Buttons */}
             <div className="space-y-2">
               <label className="text-sm font-medium">Load Configuration</label>
-              <div className="flex items-center gap-2">
+              <div className="flex flex-wrap items-center gap-2">
                 <Tooltip>
                   <TooltipTrigger asChild>
                     <Button
