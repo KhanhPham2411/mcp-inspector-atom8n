@@ -678,136 +678,108 @@ const Sidebar = ({
             <div className="space-y-2">
               <label className="text-sm font-medium">Load Configuration</label>
               <div className="flex flex-wrap items-center gap-2">
-                <Tooltip>
-                  <TooltipTrigger asChild>
-                    <Button
-                      variant="outline"
-                      size="sm"
-                      onClick={() => {
-                        setActiveConfigPath("~/.cursor/mcp.json");
-                        localStorage.setItem(
-                          "activeConfigPath",
-                          "~/.cursor/mcp.json",
-                        );
-                        loadDefaultConfig("~/.cursor/mcp.json");
-                      }}
-                      disabled={isLoadingDefault}
-                      className={`${configBtnClass} ${activeConfigPath === "~/.cursor/mcp.json" ? "ring-2 ring-green-500" : ""}`}
-                    >
-                      {isLoadingDefault ? (
-                        <Loader2 className="w-4 h-4 animate-spin" />
-                      ) : (
-                        <img
-                          src="/cursor.svg"
-                          alt="Cursor"
-                          className="w-4 h-4"
-                        />
-                      )}
-                      Cursor
-                      {configCounts["~/.cursor/mcp.json"] != null
-                        ? ` (${configCounts["~/.cursor/mcp.json"]})`
-                        : ""}
-                    </Button>
-                  </TooltipTrigger>
-                  <TooltipContent>~/.cursor/mcp.json</TooltipContent>
-                </Tooltip>
-                <Tooltip>
-                  <TooltipTrigger asChild>
-                    <Button
-                      variant="outline"
-                      size="sm"
-                      onClick={() => {
-                        setActiveConfigPath(
-                          "~/.gemini/antigravity/mcp_config.json",
-                        );
-                        localStorage.setItem(
-                          "activeConfigPath",
-                          "~/.gemini/antigravity/mcp_config.json",
-                        );
-                        loadDefaultConfig(
-                          "~/.gemini/antigravity/mcp_config.json",
-                        );
-                      }}
-                      disabled={isLoadingDefault}
-                      className={`${configBtnClass} ${activeConfigPath === "~/.gemini/antigravity/mcp_config.json" ? "ring-2 ring-green-500" : ""}`}
-                    >
-                      {isLoadingDefault ? (
-                        <Loader2 className="w-4 h-4 animate-spin" />
-                      ) : (
-                        <img
-                          src="/antigravity.png"
-                          alt="Antigravity"
-                          className="w-4 h-4"
-                        />
-                      )}
-                      Antigravity
-                      {configCounts["~/.gemini/antigravity/mcp_config.json"] !=
-                      null
-                        ? ` (${configCounts["~/.gemini/antigravity/mcp_config.json"]})`
-                        : ""}
-                    </Button>
-                  </TooltipTrigger>
-                  <TooltipContent>
-                    ~/.gemini/antigravity/mcp_config.json
-                  </TooltipContent>
-                </Tooltip>
-                <Tooltip>
-                  <TooltipTrigger asChild>
-                    <Button
-                      variant="outline"
-                      size="sm"
-                      onClick={async () => {
-                        try {
-                          const baseUrl = getMCPProxyAddress(config);
-                          const { token, header } =
-                            getMCPProxyAuthToken(config);
-                          const resp = await fetch(`${baseUrl}/choose-file`, {
-                            method: "POST",
-                            headers: {
-                              "Content-Type": "application/json",
-                              [header]: token ? `Bearer ${token}` : "",
-                            },
-                          });
-                          if (resp.ok) {
-                            const data = await resp.json();
-                            if (!data.cancelled && data.path) {
-                              console.log(
-                                "[Custom] File chosen:",
-                                data.path,
-                                data.absolutePath,
-                              );
-                              setActiveConfigPath(data.path);
-                              localStorage.setItem(
-                                "activeConfigPath",
-                                data.path,
-                              );
-                              loadDefaultConfig(data.path);
-                            }
-                          }
-                        } catch (err) {
-                          console.error("[Custom] Error choosing file:", err);
+                <Button
+                  variant="outline"
+                  size="sm"
+                  onClick={() => {
+                    setActiveConfigPath("~/.cursor/mcp.json");
+                    localStorage.setItem(
+                      "activeConfigPath",
+                      "~/.cursor/mcp.json",
+                    );
+                    loadDefaultConfig("~/.cursor/mcp.json");
+                  }}
+                  disabled={isLoadingDefault}
+                  className={`${configBtnClass} ${activeConfigPath === "~/.cursor/mcp.json" ? "ring-2 ring-green-500" : ""}`}
+                >
+                  {isLoadingDefault ? (
+                    <Loader2 className="w-4 h-4 animate-spin" />
+                  ) : (
+                    <img src="/cursor.svg" alt="Cursor" className="w-4 h-4" />
+                  )}
+                  Cursor
+                  {configCounts["~/.cursor/mcp.json"] != null
+                    ? ` (${configCounts["~/.cursor/mcp.json"]})`
+                    : ""}
+                </Button>
+                <Button
+                  variant="outline"
+                  size="sm"
+                  onClick={() => {
+                    setActiveConfigPath(
+                      "~/.gemini/antigravity/mcp_config.json",
+                    );
+                    localStorage.setItem(
+                      "activeConfigPath",
+                      "~/.gemini/antigravity/mcp_config.json",
+                    );
+                    loadDefaultConfig("~/.gemini/antigravity/mcp_config.json");
+                  }}
+                  disabled={isLoadingDefault}
+                  className={`${configBtnClass} ${activeConfigPath === "~/.gemini/antigravity/mcp_config.json" ? "ring-2 ring-green-500" : ""}`}
+                >
+                  {isLoadingDefault ? (
+                    <Loader2 className="w-4 h-4 animate-spin" />
+                  ) : (
+                    <img
+                      src="/antigravity.png"
+                      alt="Antigravity"
+                      className="w-4 h-4"
+                    />
+                  )}
+                  Antigravity
+                  {configCounts["~/.gemini/antigravity/mcp_config.json"] != null
+                    ? ` (${configCounts["~/.gemini/antigravity/mcp_config.json"]})`
+                    : ""}
+                </Button>
+                <Button
+                  variant="outline"
+                  size="sm"
+                  onClick={async () => {
+                    try {
+                      const baseUrl = getMCPProxyAddress(config);
+                      const { token, header } = getMCPProxyAuthToken(config);
+                      const resp = await fetch(`${baseUrl}/choose-file`, {
+                        method: "POST",
+                        headers: {
+                          "Content-Type": "application/json",
+                          [header]: token ? `Bearer ${token}` : "",
+                        },
+                      });
+                      if (resp.ok) {
+                        const data = await resp.json();
+                        if (!data.cancelled && data.path) {
+                          console.log(
+                            "[Custom] File chosen:",
+                            data.path,
+                            data.absolutePath,
+                          );
+                          setActiveConfigPath(data.path);
+                          localStorage.setItem("activeConfigPath", data.path);
+                          loadDefaultConfig(data.path);
                         }
-                      }}
-                      disabled={isLoadingDefault}
-                      className={`${configBtnClass} ${activeConfigPath && activeConfigPath !== "~/.cursor/mcp.json" && activeConfigPath !== "~/.gemini/antigravity/mcp_config.json" ? "ring-2 ring-green-500" : ""}`}
-                    >
-                      {isLoadingDefault ? (
-                        <Loader2 className="w-4 h-4 animate-spin" />
-                      ) : (
-                        <FileCog className="w-4 h-4" />
-                      )}
-                      Custom
-                      {activeConfigPath &&
-                      activeConfigPath !== "~/.cursor/mcp.json" &&
-                      activeConfigPath !==
-                        "~/.gemini/antigravity/mcp_config.json" &&
-                      configCounts[activeConfigPath] != null
-                        ? ` (${configCounts[activeConfigPath]})`
-                        : ""}
-                    </Button>
-                  </TooltipTrigger>
-                  <TooltipContent>Pick a custom MCP config file</TooltipContent>
-                </Tooltip>
+                      }
+                    } catch (err) {
+                      console.error("[Custom] Error choosing file:", err);
+                    }
+                  }}
+                  disabled={isLoadingDefault}
+                  className={`${configBtnClass} ${activeConfigPath && activeConfigPath !== "~/.cursor/mcp.json" && activeConfigPath !== "~/.gemini/antigravity/mcp_config.json" ? "ring-2 ring-green-500" : ""}`}
+                >
+                  {isLoadingDefault ? (
+                    <Loader2 className="w-4 h-4 animate-spin" />
+                  ) : (
+                    <FileCog className="w-4 h-4" />
+                  )}
+                  Custom
+                  {activeConfigPath &&
+                  activeConfigPath !== "~/.cursor/mcp.json" &&
+                  activeConfigPath !==
+                    "~/.gemini/antigravity/mcp_config.json" &&
+                  configCounts[activeConfigPath] != null
+                    ? ` (${configCounts[activeConfigPath]})`
+                    : ""}
+                </Button>
               </div>
               {_configFilePath && !isLoadingDefault && (
                 <button
