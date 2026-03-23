@@ -32,6 +32,8 @@ import {
   RefreshCw,
   ExternalLink as GotoIcon,
   Play,
+  ChevronDown,
+  ChevronRight,
 } from "lucide-react";
 import { useToast } from "../lib/hooks/useToast";
 import { InspectorConfig } from "@/lib/configurationTypes";
@@ -99,6 +101,9 @@ const MCPStoreTab = ({
   const [isLoading, setIsLoading] = useState(false);
   const [testingServer, setTestingServer] = useState<string | null>(null);
   const [installingServer, setInstallingServer] = useState<string | null>(null);
+  const [collapsedGroups, setCollapsedGroups] = useState<Set<string>>(
+    new Set(),
+  );
   const [showSourceConfig, setShowSourceConfig] = useState(false);
   const [newSource, setNewSource] = useState({
     name: "",
@@ -579,6 +584,31 @@ const MCPStoreTab = ({
   const urlForSourceName = (name: string | undefined) =>
     name ? sources.find((s) => s.name === name)?.url : undefined;
 
+  // Group filtered servers by source
+  const groupedServers = useMemo(() => {
+    const groups: Record<string, MCPServer[]> = {};
+    for (const server of filteredServers) {
+      const sourceName = server.source || "Unknown";
+      if (!groups[sourceName]) {
+        groups[sourceName] = [];
+      }
+      groups[sourceName].push(server);
+    }
+    return groups;
+  }, [filteredServers]);
+
+  const toggleGroup = (groupName: string) => {
+    setCollapsedGroups((prev) => {
+      const next = new Set(prev);
+      if (next.has(groupName)) {
+        next.delete(groupName);
+      } else {
+        next.add(groupName);
+      }
+      return next;
+    });
+  };
+
   return (
     <div className="w-full p-4">
       <div className="flex items-center justify-between mb-6">
@@ -629,147 +659,175 @@ const MCPStoreTab = ({
         </div>
       </div>
 
-      {/* Servers Grid */}
-      <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
-        {filteredServers.map((server, index) => {
-          const sourceBadgeUrl = urlForSourceName(server.source);
-          const sourceBadgeLabel = server.source || "Unknown";
+      {/* Servers Grouped by Source */}
+      <div className="space-y-4">
+        {Object.entries(groupedServers).map(([sourceName, servers]) => {
+          const isCollapsed = collapsedGroups.has(sourceName);
+          const sourceUrl = urlForSourceName(sourceName);
           return (
-            <Card
-              key={`${server.name}-${index}`}
-              className="hover:shadow-md transition-shadow"
-            >
-              <CardHeader className="pb-3">
-                <div className="flex items-start justify-between">
-                  <div className="flex items-center gap-2">
-                    <Package className="w-5 h-5 text-primary" />
-                    <CardTitle className="text-lg">{server.name}</CardTitle>
-                  </div>
-                  {sourceBadgeUrl ? (
-                    <a
-                      href={sourceBadgeUrl}
-                      target="_blank"
-                      rel="noopener noreferrer"
-                      className={cn(
-                        badgeVariants({ variant: "secondary" }),
-                        "text-xs hover:opacity-90",
-                      )}
-                    >
-                      {sourceBadgeLabel}
-                    </a>
-                  ) : (
-                    <Badge variant="secondary" className="text-xs">
-                      {sourceBadgeLabel}
-                    </Badge>
-                  )}
-                </div>
-                {server.description && (
-                  <CardDescription className="text-sm">
-                    {server.description}
-                  </CardDescription>
+            <div key={sourceName} className="border rounded-lg">
+              <button
+                onClick={() => toggleGroup(sourceName)}
+                className="flex items-center gap-2 w-full px-4 py-3 text-left hover:bg-muted/50 rounded-t-lg transition-colors"
+              >
+                {isCollapsed ? (
+                  <ChevronRight className="w-4 h-4 shrink-0" />
+                ) : (
+                  <ChevronDown className="w-4 h-4 shrink-0" />
                 )}
-              </CardHeader>
-              <CardContent className="pt-0">
-                <div className="space-y-3">
-                  <div className="flex items-center gap-2 text-sm text-muted-foreground">
-                    <span>Command:</span>
-                    <code className="bg-muted px-2 py-1 rounded text-xs">
-                      {server.command} {server.args.join(" ")}
-                    </code>
-                  </div>
-
-                  {server.version && (
-                    <div className="flex items-center gap-2 text-sm">
-                      <span className="text-muted-foreground">Version:</span>
-                      <span>{server.version}</span>
-                    </div>
-                  )}
-
-                  {server.author && (
-                    <div className="flex items-center gap-2 text-sm">
-                      <span className="text-muted-foreground">Author:</span>
-                      <span>{server.author}</span>
-                    </div>
-                  )}
-
-                  {server.license && (
-                    <div className="flex items-center gap-2 text-sm">
-                      <span className="text-muted-foreground">License:</span>
-                      <span>{server.license}</span>
-                    </div>
-                  )}
-
-                  <div className="flex items-center gap-2">
-                    {isServerInstalled(server) ? (
-                      <Button
-                        onClick={() => handleUninstallServer(server)}
-                        className="flex-1"
-                        size="sm"
-                        variant="destructive"
-                        disabled={installingServer === getServerKey(server)}
-                      >
-                        {installingServer === getServerKey(server) ? (
-                          <Loader2 className="w-4 h-4 mr-2 animate-spin" />
-                        ) : (
-                          <Trash2 className="w-4 h-4 mr-2" />
-                        )}
-                        {installingServer === getServerKey(server)
-                          ? "Uninstalling..."
-                          : "Uninstall"}
-                      </Button>
-                    ) : (
-                      <Button
-                        onClick={() => handleInstallServer(server)}
-                        className="flex-1"
-                        size="sm"
-                        disabled={installingServer === getServerKey(server)}
-                      >
-                        {installingServer === getServerKey(server) ? (
-                          <Loader2 className="w-4 h-4 mr-2 animate-spin" />
-                        ) : (
-                          <Download className="w-4 h-4 mr-2" />
-                        )}
-                        {installingServer === getServerKey(server)
-                          ? "Installing..."
-                          : "Install"}
-                      </Button>
-                    )}
-                    <Button
-                      variant="outline"
-                      size="sm"
-                      onClick={() => handleTestConnection(server)}
-                      title="Test connection to this server"
-                      disabled={
-                        testingServer === `${server.name}-${server.command}`
-                      }
+                <span className="font-semibold text-sm">{sourceName}</span>
+                <Badge variant="secondary" className="text-xs">
+                  {servers.length}
+                </Badge>
+                {sourceUrl && (
+                  <a
+                    href={sourceUrl}
+                    target="_blank"
+                    rel="noopener noreferrer"
+                    className="ml-auto text-muted-foreground hover:text-primary"
+                    onClick={(e) => e.stopPropagation()}
+                  >
+                    <GotoIcon className="w-3.5 h-3.5" />
+                  </a>
+                )}
+              </button>
+              {!isCollapsed && (
+                <div className="px-4 pb-4 pt-2 grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
+                  {servers.map((server, index) => (
+                    <Card
+                      key={`${server.name}-${index}`}
+                      className="hover:shadow-md transition-shadow"
                     >
-                      {testingServer === `${server.name}-${server.command}` ? (
-                        <Loader2 className="w-4 h-4 animate-spin" />
-                      ) : (
-                        <Play className="w-4 h-4" />
-                      )}
-                    </Button>
-                    <Button
-                      variant="outline"
-                      size="sm"
-                      onClick={() => {
-                        const config = {
-                          command: server.command,
-                          args: server.args,
-                          env: server.env,
-                          disabled: server.disabled,
-                          autoApprove: server.autoApprove,
-                        };
-                        console.log("Server config:", config);
-                      }}
-                      title="View server configuration"
-                    >
-                      <ExternalLink className="w-4 h-4" />
-                    </Button>
-                  </div>
+                      <CardHeader className="pb-3">
+                        <div className="flex items-center gap-2">
+                          <Package className="w-5 h-5 text-primary" />
+                          <CardTitle className="text-lg">
+                            {server.name}
+                          </CardTitle>
+                        </div>
+                        {server.description && (
+                          <CardDescription className="text-sm">
+                            {server.description}
+                          </CardDescription>
+                        )}
+                      </CardHeader>
+                      <CardContent className="pt-0">
+                        <div className="space-y-3">
+                          <div className="flex items-center gap-2 text-sm text-muted-foreground">
+                            <span>Command:</span>
+                            <code className="bg-muted px-2 py-1 rounded text-xs">
+                              {server.command} {server.args.join(" ")}
+                            </code>
+                          </div>
+
+                          {server.version && (
+                            <div className="flex items-center gap-2 text-sm">
+                              <span className="text-muted-foreground">
+                                Version:
+                              </span>
+                              <span>{server.version}</span>
+                            </div>
+                          )}
+
+                          {server.author && (
+                            <div className="flex items-center gap-2 text-sm">
+                              <span className="text-muted-foreground">
+                                Author:
+                              </span>
+                              <span>{server.author}</span>
+                            </div>
+                          )}
+
+                          {server.license && (
+                            <div className="flex items-center gap-2 text-sm">
+                              <span className="text-muted-foreground">
+                                License:
+                              </span>
+                              <span>{server.license}</span>
+                            </div>
+                          )}
+
+                          <div className="flex items-center gap-2">
+                            {isServerInstalled(server) ? (
+                              <Button
+                                onClick={() => handleUninstallServer(server)}
+                                className="flex-1"
+                                size="sm"
+                                variant="destructive"
+                                disabled={
+                                  installingServer === getServerKey(server)
+                                }
+                              >
+                                {installingServer === getServerKey(server) ? (
+                                  <Loader2 className="w-4 h-4 mr-2 animate-spin" />
+                                ) : (
+                                  <Trash2 className="w-4 h-4 mr-2" />
+                                )}
+                                {installingServer === getServerKey(server)
+                                  ? "Uninstalling..."
+                                  : "Uninstall"}
+                              </Button>
+                            ) : (
+                              <Button
+                                onClick={() => handleInstallServer(server)}
+                                className="flex-1"
+                                size="sm"
+                                disabled={
+                                  installingServer === getServerKey(server)
+                                }
+                              >
+                                {installingServer === getServerKey(server) ? (
+                                  <Loader2 className="w-4 h-4 mr-2 animate-spin" />
+                                ) : (
+                                  <Download className="w-4 h-4 mr-2" />
+                                )}
+                                {installingServer === getServerKey(server)
+                                  ? "Installing..."
+                                  : "Install"}
+                              </Button>
+                            )}
+                            <Button
+                              variant="outline"
+                              size="sm"
+                              onClick={() => handleTestConnection(server)}
+                              title="Test connection to this server"
+                              disabled={
+                                testingServer ===
+                                `${server.name}-${server.command}`
+                              }
+                            >
+                              {testingServer ===
+                              `${server.name}-${server.command}` ? (
+                                <Loader2 className="w-4 h-4 animate-spin" />
+                              ) : (
+                                <Play className="w-4 h-4" />
+                              )}
+                            </Button>
+                            <Button
+                              variant="outline"
+                              size="sm"
+                              onClick={() => {
+                                const config = {
+                                  command: server.command,
+                                  args: server.args,
+                                  env: server.env,
+                                  disabled: server.disabled,
+                                  autoApprove: server.autoApprove,
+                                };
+                                console.log("Server config:", config);
+                              }}
+                              title="View server configuration"
+                            >
+                              <ExternalLink className="w-4 h-4" />
+                            </Button>
+                          </div>
+                        </div>
+                      </CardContent>
+                    </Card>
+                  ))}
                 </div>
-              </CardContent>
-            </Card>
+              )}
+            </div>
           );
         })}
       </div>
