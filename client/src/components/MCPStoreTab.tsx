@@ -922,7 +922,7 @@ const MCPStoreTab = ({
                             const { token, header } =
                               getMCPProxyAuthToken(config);
                             await fetch(
-                              `${baseUrl}/open-config-folder?path=${encodeURIComponent(configBasedSource.configPath)}`,
+                              `${baseUrl}/open-config-file?path=${encodeURIComponent(configBasedSource.configPath)}`,
                               {
                                 method: "POST",
                                 headers: {
@@ -932,10 +932,7 @@ const MCPStoreTab = ({
                               },
                             );
                           } catch (err) {
-                            console.error(
-                              "Failed to open config file:",
-                              err,
-                            );
+                            console.error("Failed to open config file:", err);
                           }
                         }}
                       >

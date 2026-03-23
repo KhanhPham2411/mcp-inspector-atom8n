@@ -1762,6 +1762,70 @@ app.post(
   },
 );
 
+// Open config file directly in default editor
+app.post(
+  "/open-config-file",
+  originValidationMiddleware,
+  authMiddleware,
+  (req, res) => {
+    try {
+      const rawPath = (req.query.path as string) || "";
+      if (!rawPath) {
+        res.status(400).json({
+          error: "Bad Request",
+          message: "Missing 'path' query parameter",
+        });
+        return;
+      }
+
+      const homeDir = os.homedir();
+      const expandedPath = rawPath.startsWith("~/")
+        ? path.join(homeDir, rawPath.slice(2))
+        : rawPath === "~"
+          ? homeDir
+          : rawPath;
+
+      logger.info(`Opening config file: ${expandedPath}`);
+
+      const platform = process.platform;
+      let command: string;
+      if (platform === "darwin") {
+        command = `open "${expandedPath}"`;
+      } else if (platform === "win32") {
+        command = `start "" "${expandedPath}"`;
+      } else {
+        command = `xdg-open "${expandedPath}"`;
+      }
+
+      exec(command, (error: any, stdout: string, stderr: string) => {
+        if (error) {
+          logger.error(`Error opening config file: ${error.message}`);
+          res.status(500).json({
+            error: "Internal Server Error",
+            message: error.message,
+            command,
+            file: expandedPath,
+          });
+          return;
+        }
+        res.json({
+          success: true,
+          message: "Config file opened",
+          file: expandedPath,
+        });
+      });
+    } catch (error: any) {
+      logger.error(
+        `Error opening config file (caught): ${error?.message || String(error)}`,
+      );
+      res.status(500).json({
+        error: "Internal Server Error",
+        message: error?.message || String(error),
+      });
+    }
+  },
+);
+
 // Open native file picker to choose an MCP config file
 app.post(
   "/choose-file",
