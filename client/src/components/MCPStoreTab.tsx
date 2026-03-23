@@ -8,8 +8,7 @@ import {
   CardHeader,
   CardTitle,
 } from "@/components/ui/card";
-import { Badge, badgeVariants } from "@/components/ui/badge";
-import { cn } from "@/lib/utils";
+import { Badge } from "@/components/ui/badge";
 import {
   Dialog,
   DialogContent,
@@ -110,8 +109,6 @@ const MCPStoreTab = ({
     url: "",
     enabled: true,
   });
-  const [selectedSource, setSelectedSource] =
-    useState<string>("Default MCP Store");
 
   // Compute the dynamic config-based source:
   // When on Cursor, offer Antigravity as source; when on Antigravity, offer Cursor.
@@ -580,7 +577,6 @@ const MCPStoreTab = ({
         server.description.toLowerCase().includes(searchQuery.toLowerCase())),
   );
 
-  const selectedSourceDef = sources.find((s) => s.name === selectedSource);
   const urlForSourceName = (name: string | undefined) =>
     name ? sources.find((s) => s.name === name)?.url : undefined;
 
@@ -905,6 +901,66 @@ const MCPStoreTab = ({
                 ))}
               </div>
             </div>
+
+            {/* Config-based Source (read-only) */}
+            {configBasedSource && (
+              <div>
+                <Label className="text-sm font-medium mb-2 block">
+                  MCP JSON File Source
+                </Label>
+                <div className="space-y-2">
+                  <div className="flex items-start gap-3 p-4 border rounded-lg bg-muted/30">
+                    <div className="flex-shrink-0 pt-1">
+                      <Switch checked={true} disabled />
+                    </div>
+                    <div className="flex-1 min-w-0">
+                      <button
+                        className="font-medium mb-1 inline-flex items-center gap-1.5 text-primary hover:underline cursor-pointer"
+                        onClick={async () => {
+                          try {
+                            const baseUrl = getMCPProxyAddress(config);
+                            const { token, header } =
+                              getMCPProxyAuthToken(config);
+                            await fetch(
+                              `${baseUrl}/open-config-folder?path=${encodeURIComponent(configBasedSource.configPath)}`,
+                              {
+                                method: "POST",
+                                headers: {
+                                  "Content-Type": "application/json",
+                                  [header]: token ? `Bearer ${token}` : "",
+                                },
+                              },
+                            );
+                          } catch (err) {
+                            console.error(
+                              "Failed to open config file:",
+                              err,
+                            );
+                          }
+                        }}
+                      >
+                        <img
+                          src={configBasedSource.icon}
+                          alt={configBasedSource.name}
+                          className="w-4 h-4"
+                        />
+                        {configBasedSource.name}
+                        <GotoIcon
+                          className="w-3.5 h-3.5 shrink-0 opacity-80"
+                          aria-hidden
+                        />
+                      </button>
+                      <div className="text-sm text-muted-foreground break-all">
+                        {configBasedSource.configPath}
+                      </div>
+                      <div className="text-xs text-muted-foreground mt-1">
+                        Auto-detected from active config file
+                      </div>
+                    </div>
+                  </div>
+                </div>
+              </div>
+            )}
 
             {/* Add New Source */}
             <div className="border-t pt-4">
