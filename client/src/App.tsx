@@ -285,6 +285,26 @@ const App = () => {
 
   const currentTabRef = useRef<string>(activeTab);
   const lastToolCallOriginTabRef = useRef<string>(activeTab);
+  const currentServerConfig = currentServerName
+    ? currentServers[currentServerName]
+    : undefined;
+  const manualServerConfig =
+    transportType === "stdio"
+      ? {
+          command,
+          args: args.trim() ? args.trim().split(/\s+/) : [],
+          env: { ...env },
+        }
+      : transportType === "streamable-http"
+        ? {
+            type: "streamable-http",
+            url: sseUrl,
+          }
+        : {
+            type: "sse",
+            url: sseUrl,
+          };
+  const serverConfigForCurl = currentServerConfig || manualServerConfig;
 
   useEffect(() => {
     currentTabRef.current = activeTab;
@@ -1260,7 +1280,7 @@ const App = () => {
                         clearError("resources");
                         readResource(uri);
                       }}
-                      currentServerName={currentServerName || undefined}
+                      currentServerConfig={serverConfigForCurl}
                     />
                     <ConsoleTab />
                     <PingTab

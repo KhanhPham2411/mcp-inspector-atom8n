@@ -61,7 +61,7 @@ const ToolsTab = ({
   error,
   resourceContent,
   onReadResource,
-  currentServerName,
+  currentServerConfig,
 }: {
   tools: Tool[];
   listTools: () => void;
@@ -74,7 +74,7 @@ const ToolsTab = ({
   error: string | null;
   resourceContent: Record<string, string>;
   onReadResource?: (uri: string) => void;
-  currentServerName?: string;
+  currentServerConfig?: Record<string, unknown>;
 }) => {
   const [params, setParams] = useState<Record<string, unknown>>({});
   const [isToolRunning, setIsToolRunning] = useState(false);
@@ -118,16 +118,16 @@ const ToolsTab = ({
   const generateCurlCommand = () => {
     if (!selectedTool) return "";
 
-    const serverName = currentServerName || "default-server";
     const proxyUrl = "http://localhost:6277";
+    const server = currentServerConfig || { type: "stdio" };
 
     const curlCommand = `curl -X POST ${proxyUrl}/execute-tool \\
   -H "Origin: http://localhost:6274" \\
   -H "Content-Type: application/json" \\
   -d '{
-    "serverName": "${serverName}",
     "toolName": "${selectedTool.name}",
-    "toolArgs": ${JSON.stringify(params, null, 2)}
+    "toolArgs": ${JSON.stringify(params, null, 2)},
+    "server": ${JSON.stringify(server, null, 2)}
   }'`;
 
     return curlCommand;

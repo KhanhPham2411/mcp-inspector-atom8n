@@ -1309,34 +1309,34 @@ async function createExecuteToolConnection(
 }
 
 async function getOrCreateExecuteToolConnection(
-  serverName: string,
+  cacheKey: string,
   serverConfig: Record<string, unknown>,
   req: express.Request,
 ): Promise<CachedExecuteToolConnection> {
-  const entry = executeToolConnectionCache.get(serverName);
+  const entry = executeToolConnectionCache.get(cacheKey);
   if (entry && "client" in entry) return entry;
   if (entry instanceof Promise) {
     try {
       return await entry;
     } catch {
-      executeToolConnectionCache.delete(serverName);
+      executeToolConnectionCache.delete(cacheKey);
     }
   }
   const promise = createExecuteToolConnection(serverConfig, req);
-  executeToolConnectionCache.set(serverName, promise);
+  executeToolConnectionCache.set(cacheKey, promise);
   try {
     const result = await promise;
-    executeToolConnectionCache.set(serverName, result);
+    executeToolConnectionCache.set(cacheKey, result);
     return result;
   } catch (err) {
-    executeToolConnectionCache.delete(serverName);
+    executeToolConnectionCache.delete(cacheKey);
     throw err;
   }
 }
 
-async function evictExecuteToolConnection(serverName: string): Promise<void> {
-  const entry = executeToolConnectionCache.get(serverName);
-  executeToolConnectionCache.delete(serverName);
+async function evictExecuteToolConnection(cacheKey: string): Promise<void> {
+  const entry = executeToolConnectionCache.get(cacheKey);
+  executeToolConnectionCache.delete(cacheKey);
   if (entry && "client" in entry) {
     try {
       await entry.client.close();
@@ -1353,37 +1353,82 @@ app.post(
   originValidationMiddleware,
   express.json(),
   async (req, res) => {
-    const { serverName, toolName, toolArgs = {} } = req.body;
+    const {
+      serverName,
+      server,
+      toolName,
+      toolArgs = {},
+    }: {
+      serverName?: string;
+      server?: Record<string, unknown>;
+      toolName?: string;
+      toolArgs?: Record<string, unknown>;
+    } = req.body;
 
-    if (!serverName || !toolName) {
+    logger.info(
+      `[execute-tool] Request received toolName=${toolName || "<missing>"} serverName=${serverName || "<none>"} hasInlineServer=${Boolean(server)}`,
+    );
+
+    if (!toolName || (!serverName && !server)) {
+      logger.warn(
+        "[execute-tool] Validation failed: missing toolName or both server/serverName",
+      );
       res.status(400).json({
         error: "Bad Request",
-        message: "Both serverName and toolName are required",
+        message: "toolName and either serverName or server are required",
+      });
+      return;
+    }
+    if (server && (typeof server !== "object" || Array.isArray(server))) {
+      logger.warn("[execute-tool] Validation failed: server must be an object");
+      res.status(400).json({
+        error: "Bad Request",
+        message: "server must be a JSON object",
       });
       return;
     }
 
     try {
-      const homeDir = os.homedir();
-      const configPath = path.join(homeDir, ".cursor", "mcp.json");
-      const fileContent = await fs.readFile(configPath, "utf8");
-      const config = JSON.parse(fileContent);
-      const servers = config.servers || config.mcpServers;
+      let resolvedServerConfig: Record<string, unknown>;
+      let cacheKey: string;
+      let resolvedServerName: string | undefined = serverName;
 
-      if (!servers || !servers[serverName]) {
-        res.status(404).json({
-          error: "Not Found",
-          message: `MCP server '${serverName}' not found in configuration`,
-        });
-        return;
+      if (server) {
+        resolvedServerConfig = server;
+        cacheKey = `inline:${JSON.stringify(server)}`;
+        logger.info("[execute-tool] Using inline server configuration");
+      } else {
+        const homeDir = os.homedir();
+        const configPath = path.join(homeDir, ".cursor", "mcp.json");
+        const fileContent = await fs.readFile(configPath, "utf8");
+        const config = JSON.parse(fileContent);
+        const servers = config.servers || config.mcpServers;
+
+        if (!resolvedServerName || !servers || !servers[resolvedServerName]) {
+          logger.warn(
+            `[execute-tool] Server not found in configuration: ${resolvedServerName || "<missing>"}`,
+          );
+          res.status(404).json({
+            error: "Not Found",
+            message: `MCP server '${resolvedServerName}' not found in configuration`,
+          });
+          return;
+        }
+
+        resolvedServerConfig = servers[resolvedServerName];
+        cacheKey = `named:${resolvedServerName}`;
+        logger.info(
+          `[execute-tool] Using configured server '${resolvedServerName}'`,
+        );
       }
 
-      const serverConfig = servers[serverName];
-      console.log(`Executing tool '${toolName}' on server '${serverName}'`);
+      logger.info(
+        `[execute-tool] Executing tool '${toolName}' via cacheKey='${cacheKey}'`,
+      );
 
-      const { client, transport } = await getOrCreateExecuteToolConnection(
-        serverName,
-        serverConfig,
+      const { client } = await getOrCreateExecuteToolConnection(
+        cacheKey,
+        resolvedServerConfig,
         req,
       );
 
@@ -1392,18 +1437,24 @@ app.post(
           name: toolName,
           arguments: toolArgs,
         });
+        logger.info(`[execute-tool] Tool '${toolName}' completed successfully`);
         res.json({
           success: true,
           result,
-          serverName,
           toolName,
+          ...(resolvedServerName ? { serverName: resolvedServerName } : {}),
+          ...(server ? { server } : {}),
         });
+        return;
       } catch (toolError) {
-        await evictExecuteToolConnection(serverName);
+        logger.warn(
+          `[execute-tool] Tool '${toolName}' failed; evicting cache key '${cacheKey}'`,
+        );
+        await evictExecuteToolConnection(cacheKey);
         throw toolError;
       }
     } catch (error) {
-      console.error("Error executing tool:", error);
+      logger.error("[execute-tool] Error executing tool:", error);
       res.status(500).json({
         error: "Internal Server Error",
         message: error instanceof Error ? error.message : String(error),
