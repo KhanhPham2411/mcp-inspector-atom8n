@@ -33,6 +33,7 @@ import {
   Play,
   ChevronDown,
   ChevronRight,
+  FolderOpen,
 } from "lucide-react";
 import { useToast } from "../lib/hooks/useToast";
 import { InspectorConfig } from "@/lib/configurationTypes";
@@ -663,31 +664,100 @@ const MCPStoreTab = ({
           const sourceUrl = urlForSourceName(sourceName);
           return (
             <div key={sourceName} className="border rounded-lg">
-              <button
-                onClick={() => toggleGroup(sourceName)}
-                className="flex items-center gap-2 w-full px-4 py-3 text-left hover:bg-muted/50 rounded-t-lg transition-colors"
-              >
-                {isCollapsed ? (
-                  <ChevronRight className="w-4 h-4 shrink-0" />
-                ) : (
-                  <ChevronDown className="w-4 h-4 shrink-0" />
-                )}
-                <span className="font-semibold text-sm">{sourceName}</span>
-                <Badge variant="secondary" className="text-xs">
-                  {servers.length}
-                </Badge>
-                {sourceUrl && (
-                  <a
-                    href={sourceUrl}
-                    target="_blank"
-                    rel="noopener noreferrer"
-                    className="ml-auto text-muted-foreground hover:text-primary"
-                    onClick={(e) => e.stopPropagation()}
+              <div className="flex items-center gap-2 px-4 py-3 rounded-t-lg">
+                <button
+                  onClick={() => toggleGroup(sourceName)}
+                  className="flex items-center gap-2 hover:bg-muted/50 rounded px-1 py-0.5 transition-colors"
+                >
+                  {isCollapsed ? (
+                    <ChevronRight className="w-4 h-4 shrink-0" />
+                  ) : (
+                    <ChevronDown className="w-4 h-4 shrink-0" />
+                  )}
+                  <span className="font-semibold text-sm">{sourceName}</span>
+                  <Badge variant="secondary" className="text-xs">
+                    {servers.length}
+                  </Badge>
+                </button>
+                <div className="ml-auto flex items-center gap-1">
+                  <Button
+                    variant="outline"
+                    size="sm"
+                    className="h-7 text-xs"
+                    onClick={() => {
+                      const uninstalled = servers.filter(
+                        (s) => !isServerInstalled(s),
+                      );
+                      uninstalled.forEach((s) => handleInstallServer(s));
+                    }}
+                    disabled={
+                      servers.every((s) => isServerInstalled(s)) ||
+                      installingServer !== null
+                    }
                   >
-                    <GotoIcon className="w-3.5 h-3.5" />
-                  </a>
-                )}
-              </button>
+                    <Download className="w-3 h-3 mr-1" />
+                    Install All
+                  </Button>
+                  <Button
+                    variant="outline"
+                    size="sm"
+                    className="h-7 text-xs"
+                    onClick={() => {
+                      const installed = servers.filter((s) =>
+                        isServerInstalled(s),
+                      );
+                      installed.forEach((s) => handleUninstallServer(s));
+                    }}
+                    disabled={
+                      servers.every((s) => !isServerInstalled(s)) ||
+                      installingServer !== null
+                    }
+                  >
+                    <Trash2 className="w-3 h-3 mr-1" />
+                    Uninstall All
+                  </Button>
+                  {configBasedSource &&
+                    sourceName === configBasedSource.name && (
+                      <Button
+                        variant="outline"
+                        size="sm"
+                        className="h-7 text-xs"
+                        onClick={async () => {
+                          try {
+                            const baseUrl = getMCPProxyAddress(config);
+                            const { token, header } =
+                              getMCPProxyAuthToken(config);
+                            await fetch(
+                              `${baseUrl}/open-config-file?path=${encodeURIComponent(configBasedSource.configPath)}`,
+                              {
+                                method: "POST",
+                                headers: {
+                                  "Content-Type": "application/json",
+                                  [header]: token ? `Bearer ${token}` : "",
+                                },
+                              },
+                            );
+                          } catch (err) {
+                            console.error("Failed to open config file:", err);
+                          }
+                        }}
+                      >
+                        <FolderOpen className="w-3 h-3 mr-1" />
+                        Open File
+                      </Button>
+                    )}
+                  {sourceUrl && (
+                    <a
+                      href={sourceUrl}
+                      target="_blank"
+                      rel="noopener noreferrer"
+                      className="text-muted-foreground hover:text-primary p-1"
+                    >
+                      <GotoIcon className="w-3.5 h-3.5" />
+                    </a>
+                  )}
+                </div>
+              </div>
               {!isCollapsed && (
                 <div className="px-4 pb-4 pt-2 grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
                   {servers.map((server, index) => (
