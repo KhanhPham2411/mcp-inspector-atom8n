@@ -572,6 +572,140 @@ const MCPStoreTab = ({
     }
   };
 
+  // Batch install all servers from a group in one API call
+  const handleInstallAll = async (servers: MCPServer[]) => {
+    const uninstalled = servers.filter((s) => !isServerInstalled(s));
+    if (uninstalled.length === 0) return;
+
+    setInstallingServer("batch-install");
+    try {
+      let updatedServers = { ...currentServers };
+
+      for (const server of uninstalled) {
+        const serverConfig = {
+          command: server.command,
+          args: server.args,
+          env: server.env,
+          disabled: server.disabled,
+          autoApprove: server.autoApprove,
+        };
+        const serverName = server.name
+          .toLowerCase()
+          .replace(/[^a-z0-9-]/g, "-");
+        const finalName = Object.keys(updatedServers).includes(serverName)
+          ? `${serverName}-${Date.now()}`
+          : serverName;
+        updatedServers[finalName] = serverConfig;
+      }
+
+      const baseUrl = getMCPProxyAddress(config);
+      const { token, header } = getMCPProxyAuthToken(config);
+      let updateUrl = `${baseUrl}/update-mcp-config`;
+      if (configFilePath) {
+        updateUrl += `?path=${encodeURIComponent(configFilePath)}`;
+      }
+
+      const response = await fetch(updateUrl, {
+        method: "POST",
+        headers: {
+          "Content-Type": "application/json",
+          [header]: token ? `Bearer ${token}` : "",
+        },
+        body: JSON.stringify({ servers: updatedServers }),
+      });
+
+      if (!response.ok) {
+        const errorData = await response.json().catch(() => ({}));
+        throw new Error(
+          errorData.message ||
+            `HTTP ${response.status}: ${response.statusText}`,
+        );
+      }
+
+      if (onServersChange) onServersChange(updatedServers);
+      toast({
+        title: "All Servers Installed",
+        description: `${uninstalled.length} server(s) have been added.`,
+      });
+      if (onConfigFileUpdated) onConfigFileUpdated();
+    } catch (error) {
+      toast({
+        title: "Error",
+        description: `Failed to install servers: ${error instanceof Error ? error.message : String(error)}`,
+        variant: "destructive",
+      });
+    } finally {
+      setTimeout(() => setInstallingServer(null), 500);
+    }
+  };
+
+  // Batch uninstall all servers from a group in one API call
+  const handleUninstallAll = async (servers: MCPServer[]) => {
+    const installed = servers.filter((s) => isServerInstalled(s));
+    if (installed.length === 0) return;
+
+    setInstallingServer("batch-uninstall");
+    try {
+      let updatedServers = { ...currentServers };
+
+      for (const server of installed) {
+        const matchedName = Object.keys(updatedServers).find((name) => {
+          const existing = updatedServers[name];
+          if (existing.command === server.command) {
+            const existingArgs = Array.isArray(existing.args)
+              ? existing.args
+              : [];
+            const serverArgs = Array.isArray(server.args) ? server.args : [];
+            return JSON.stringify(existingArgs) === JSON.stringify(serverArgs);
+          }
+          return false;
+        });
+        if (matchedName) {
+          delete updatedServers[matchedName];
+        }
+      }
+
+      const baseUrl = getMCPProxyAddress(config);
+      const { token, header } = getMCPProxyAuthToken(config);
+      let updateUrl = `${baseUrl}/update-mcp-config`;
+      if (configFilePath) {
+        updateUrl += `?path=${encodeURIComponent(configFilePath)}`;
+      }
+
+      const response = await fetch(updateUrl, {
+        method: "POST",
+        headers: {
+          "Content-Type": "application/json",
+          [header]: token ? `Bearer ${token}` : "",
+        },
+        body: JSON.stringify({ servers: updatedServers }),
+      });
+
+      if (!response.ok) {
+        const errorData = await response.json().catch(() => ({}));
+        throw new Error(
+          errorData.message ||
+            `HTTP ${response.status}: ${response.statusText}`,
+        );
+      }
+
+      if (onServersChange) onServersChange(updatedServers);
+      toast({
+        title: "All Servers Uninstalled",
+        description: `${installed.length} server(s) have been removed.`,
+      });
+      if (onConfigFileUpdated) onConfigFileUpdated();
+    } catch (error) {
+      toast({
+        title: "Error",
+        description: `Failed to uninstall servers: ${error instanceof Error ? error.message : String(error)}`,
+        variant: "destructive",
+      });
+    } finally {
+      setTimeout(() => setInstallingServer(null), 500);
+    }
+  };
+
   const filteredServers = availableServers.filter(
     (server) =>
       server.name.toLowerCase().includes(searchQuery.toLowerCase()) ||
@@ -684,12 +818,7 @@ const MCPStoreTab = ({
                     variant="outline"
                     size="sm"
                     className="h-7 text-xs"
-                    onClick={() => {
-                      const uninstalled = servers.filter(
-                        (s) => !isServerInstalled(s),
-                      );
-                      uninstalled.forEach((s) => handleInstallServer(s));
-                    }}
+                    onClick={() => handleInstallAll(servers)}
                     disabled={
                       servers.every((s) => isServerInstalled(s)) ||
                       installingServer !== null
@@ -702,12 +831,7 @@ const MCPStoreTab = ({
                     variant="outline"
                     size="sm"
                     className="h-7 text-xs"
-                    onClick={() => {
-                      const installed = servers.filter((s) =>
-                        isServerInstalled(s),
-                      );
-                      installed.forEach((s) => handleUninstallServer(s));
-                    }}
+                    onClick={() => handleUninstallAll(servers)}
                     disabled={
                       servers.every((s) => !isServerInstalled(s)) ||
                       installingServer !== null
