@@ -716,7 +716,7 @@ const MCPStoreTab = ({
   const urlForSourceName = (name: string | undefined) =>
     name ? sources.find((s) => s.name === name)?.url : undefined;
 
-  // Group filtered servers by source
+  // Group filtered servers by source, config-based source first
   const groupedServers = useMemo(() => {
     const groups: Record<string, MCPServer[]> = {};
     for (const server of filteredServers) {
@@ -726,8 +726,18 @@ const MCPStoreTab = ({
       }
       groups[sourceName].push(server);
     }
-    return groups;
-  }, [filteredServers]);
+    // Sort: config-based source first
+    const configName = configBasedSource?.name;
+    const entries = Object.entries(groups);
+    if (configName) {
+      entries.sort(([a], [b]) => {
+        if (a === configName) return -1;
+        if (b === configName) return 1;
+        return 0;
+      });
+    }
+    return Object.fromEntries(entries);
+  }, [filteredServers, configBasedSource]);
 
   const toggleGroup = (groupName: string) => {
     setCollapsedGroups((prev) => {
