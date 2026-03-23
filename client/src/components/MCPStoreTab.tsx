@@ -105,7 +105,10 @@ const MCPStoreTab = ({
     new Set(),
   );
   const [showSourceConfig, setShowSourceConfig] = useState(false);
-  const [configSourceEnabled, setConfigSourceEnabled] = useState(true);
+  const [configSourceEnabled, setConfigSourceEnabled] = useState(() => {
+    const saved = localStorage.getItem("mcpStoreConfigSourceEnabled");
+    return saved !== null ? JSON.parse(saved) : true;
+  });
   const [newSource, setNewSource] = useState({
     name: "",
     url: "",
@@ -154,6 +157,14 @@ const MCPStoreTab = ({
   useEffect(() => {
     localStorage.setItem("mcpStoreSources", JSON.stringify(sources));
   }, [sources, config]);
+
+  // Save configSourceEnabled to localStorage whenever it changes
+  useEffect(() => {
+    localStorage.setItem(
+      "mcpStoreConfigSourceEnabled",
+      JSON.stringify(configSourceEnabled),
+    );
+  }, [configSourceEnabled]);
 
   // Fetch MCP servers from all enabled sources
   const fetchMCPServers = useCallback(async () => {
