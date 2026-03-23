@@ -119,7 +119,11 @@ const ToolsTab = ({
     if (!selectedTool) return "";
 
     const proxyUrl = "http://localhost:6277";
-    const server = currentServerConfig || { type: "stdio" };
+    const rawServer = currentServerConfig || { type: "stdio" };
+    const { env: _ignoredEnv, ...server } = rawServer as Record<
+      string,
+      unknown
+    >;
 
     const curlCommand = `curl -X POST ${proxyUrl}/execute-tool \\
   -H "Origin: http://localhost:6274" \\

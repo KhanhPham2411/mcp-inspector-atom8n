@@ -90,7 +90,7 @@ const MCPStoreTab = ({
   const [sources, setSources] = useState<MCPSource[]>([
     {
       name: "Default MCP Store",
-      url: "https://gist.github.com/KhanhPham2411/fe8161eea89fb563915492b8b2de4ef9",
+      url: "https://gist.github.com/khanh-atom/fe8161eea89fb563915492b8b2de4ef9",
       enabled: true,
     },
   ]);
