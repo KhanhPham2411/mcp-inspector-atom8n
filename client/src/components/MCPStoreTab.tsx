@@ -1,4 +1,4 @@
-import { useState, useEffect, useCallback } from "react";
+import { useState, useEffect, useCallback, useMemo } from "react";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import {
@@ -107,6 +107,31 @@ const MCPStoreTab = ({
   });
   const [selectedSource, setSelectedSource] =
     useState<string>("Default MCP Store");
+
+  // Compute the dynamic config-based source:
+  // When on Cursor, offer Antigravity as source; when on Antigravity, offer Cursor.
+  const configBasedSource = useMemo<{
+    name: string;
+    configPath: string;
+    icon: string;
+  } | null>(() => {
+    if (!configFilePath) return null;
+    if (configFilePath.includes("cursor")) {
+      return {
+        name: "Antigravity",
+        configPath: "~/.gemini/antigravity/mcp_config.json",
+        icon: "/antigravity.png",
+      };
+    }
+    if (configFilePath.includes("antigravity")) {
+      return {
+        name: "Cursor",
+        configPath: "~/.cursor/mcp.json",
+        icon: "/cursor.svg",
+      };
+    }
+    return null;
+  }, [configFilePath]);
   const { toast } = useToast();
 
   // Load sources from localStorage on component mount
@@ -167,6 +192,52 @@ const MCPStoreTab = ({
         }
       }
 
+      // Fetch servers from the cross-config source (Cursor ↔ Antigravity)
+      if (configBasedSource) {
+        try {
+          const baseUrl = getMCPProxyAddress(config);
+          const { token, header } = getMCPProxyAuthToken(config);
+          const url = `${baseUrl}/mcp-config?path=${encodeURIComponent(configBasedSource.configPath)}`;
+          const response = await fetch(url, {
+            method: "GET",
+            headers: {
+              "Content-Type": "application/json",
+              [header]: token ? `Bearer ${token}` : "",
+            },
+          });
+          if (response.ok) {
+            const data = await response.json();
+            const configData = data.config as any;
+            const servers = (configData.servers || configData.mcpServers) as
+              | Record<string, any>
+              | undefined;
+            if (servers) {
+              const configServers = Object.entries(servers).map(
+                ([name, serverCfg]: [string, any]) => ({
+                  name,
+                  command: serverCfg.command || "",
+                  args: serverCfg.args || [],
+                  env: serverCfg.env || {},
+                  disabled: serverCfg.disabled || false,
+                  autoApprove: serverCfg.autoApprove || [],
+                  description: serverCfg.description,
+                  version: serverCfg.version,
+                  author: serverCfg.author,
+                  license: serverCfg.license,
+                  source: configBasedSource.name,
+                }),
+              );
+              allServers.push(...configServers);
+            }
+          }
+        } catch (error) {
+          console.error(
+            `Error fetching from ${configBasedSource.name} config:`,
+            error,
+          );
+        }
+      }
+
       setAvailableServers(allServers);
     } catch (error) {
       console.error("Error fetching MCP servers:", error);
@@ -178,7 +249,7 @@ const MCPStoreTab = ({
     } finally {
       setIsLoading(false);
     }
-  }, [sources, toast, config]);
+  }, [sources, toast, config, configBasedSource]);
 
   // Load servers on component mount and when sources change
   useEffect(() => {
@@ -556,44 +627,6 @@ const MCPStoreTab = ({
             className="pl-10"
           />
         </div>
-      </div>
-
-      {/* Source Selection */}
-      <div className="mb-6">
-        <Label className="text-sm font-medium mb-2 block">Package Source</Label>
-        <div className="flex items-center gap-2">
-          <select
-            value={selectedSource}
-            onChange={(e) => setSelectedSource(e.target.value)}
-            className="flex-1 px-3 py-2 border border-input bg-background rounded-md text-sm"
-          >
-            {sources
-              .filter((s) => s.enabled)
-              .map((source) => (
-                <option key={source.name} value={source.name}>
-                  {source.name}
-                </option>
-              ))}
-          </select>
-          <Button
-            variant="outline"
-            size="icon"
-            onClick={() => setShowSourceConfig(true)}
-          >
-            <Settings className="w-4 h-4" />
-          </Button>
-        </div>
-        {selectedSourceDef?.url && (
-          <a
-            href={selectedSourceDef.url}
-            target="_blank"
-            rel="noopener noreferrer"
-            className="text-sm text-primary hover:underline mt-2 inline-flex items-center gap-1"
-          >
-            {selectedSource}
-            <GotoIcon className="w-3.5 h-3.5 shrink-0 opacity-80" aria-hidden />
-          </a>
-        )}
       </div>
 
       {/* Servers Grid */}
