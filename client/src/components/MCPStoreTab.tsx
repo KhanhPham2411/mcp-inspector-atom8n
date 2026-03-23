@@ -104,6 +104,7 @@ const MCPStoreTab = ({
     new Set(),
   );
   const [showSourceConfig, setShowSourceConfig] = useState(false);
+  const [configSourceEnabled, setConfigSourceEnabled] = useState(true);
   const [newSource, setNewSource] = useState({
     name: "",
     url: "",
@@ -195,7 +196,7 @@ const MCPStoreTab = ({
       }
 
       // Fetch servers from the cross-config source (Cursor ↔ Antigravity)
-      if (configBasedSource) {
+      if (configBasedSource && configSourceEnabled) {
         try {
           const baseUrl = getMCPProxyAddress(config);
           const { token, header } = getMCPProxyAuthToken(config);
@@ -251,7 +252,7 @@ const MCPStoreTab = ({
     } finally {
       setIsLoading(false);
     }
-  }, [sources, toast, config, configBasedSource]);
+  }, [sources, toast, config, configBasedSource, configSourceEnabled]);
 
   // Load servers on component mount and when sources change
   useEffect(() => {
@@ -911,7 +912,10 @@ const MCPStoreTab = ({
                 <div className="space-y-2">
                   <div className="flex items-start gap-3 p-4 border rounded-lg bg-muted/30">
                     <div className="flex-shrink-0 pt-1">
-                      <Switch checked={true} disabled />
+                      <Switch
+                        checked={configSourceEnabled}
+                        onCheckedChange={setConfigSourceEnabled}
+                      />
                     </div>
                     <div className="flex-1 min-w-0">
                       <button
