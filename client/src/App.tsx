@@ -1096,6 +1096,33 @@ const App = () => {
           )}
         </button>
 
+        {sidebarCollapsed && (
+          <div className="flex flex-col items-center gap-2 mt-12 px-1">
+            <button
+              onClick={() => {
+                setSidebarCollapsed(false);
+              }}
+              className="p-1.5 rounded hover:bg-muted transition-colors"
+              title="Cursor"
+            >
+              <img src="/cursor.svg" alt="Cursor" className="w-5 h-5" />
+            </button>
+            <button
+              onClick={() => {
+                setSidebarCollapsed(false);
+              }}
+              className="p-1.5 rounded hover:bg-muted transition-colors"
+              title="Antigravity"
+            >
+              <img
+                src="/antigravity.png"
+                alt="Antigravity"
+                className="w-5 h-5"
+              />
+            </button>
+          </div>
+        )}
+
         {!sidebarCollapsed && (
           <>
             <Sidebar
