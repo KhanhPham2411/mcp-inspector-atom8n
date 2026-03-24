@@ -49,6 +49,8 @@ import {
   Key,
   MessageSquare,
   Store,
+  PanelLeftClose,
+  PanelLeft,
 } from "lucide-react";
 
 import { z } from "zod";
@@ -204,6 +206,15 @@ const App = () => {
   >([]);
   const [isAuthDebuggerVisible, setIsAuthDebuggerVisible] = useState(false);
   const [currentServers, setCurrentServers] = useState<Record<string, any>>({});
+  const [sidebarCollapsed, setSidebarCollapsed] = useState(() => {
+    const saved = localStorage.getItem("sidebarCollapsed");
+    return saved === "true";
+  });
+
+  // Persist sidebar collapsed state
+  useEffect(() => {
+    localStorage.setItem("sidebarCollapsed", String(sidebarCollapsed));
+  }, [sidebarCollapsed]);
   const [configRefreshKey, setConfigRefreshKey] = useState(0);
 
   const [authState, setAuthState] =
@@ -1056,62 +1067,90 @@ const App = () => {
     <div className="flex h-screen bg-background">
       <div
         style={{
-          width: sidebarWidth,
-          minWidth: 200,
-          maxWidth: 600,
-          transition: isSidebarDragging ? "none" : "width 0.15s",
+          width: sidebarCollapsed ? 44 : sidebarWidth,
+          minWidth: sidebarCollapsed ? 44 : 200,
+          maxWidth: sidebarCollapsed ? 44 : 600,
+          transition: isSidebarDragging
+            ? "none"
+            : "width 0.2s ease, min-width 0.2s ease, max-width 0.2s ease",
         }}
         className="bg-card border-r border-border flex flex-col h-full relative"
       >
-        <Sidebar
-          connectionStatus={connectionStatus}
-          transportType={transportType}
-          setTransportType={setTransportType}
-          command={command}
-          setCommand={setCommand}
-          args={args}
-          setArgs={setArgs}
-          configFilePath={configFilePath}
-          setConfigFilePath={setConfigFilePath}
-          sseUrl={sseUrl}
-          setSseUrl={setSseUrl}
-          env={env}
-          setEnv={setEnv}
-          config={config}
-          setConfig={setConfig}
-          customHeaders={customHeaders}
-          setCustomHeaders={setCustomHeaders}
-          oauthClientId={oauthClientId}
-          setOauthClientId={setOauthClientId}
-          oauthClientSecret={oauthClientSecret}
-          setOauthClientSecret={setOauthClientSecret}
-          oauthScope={oauthScope}
-          setOauthScope={setOauthScope}
-          onConnect={connectMcpServer}
-          onDisconnect={disconnectMcpServer}
-          logLevel={logLevel}
-          sendLogLevelRequest={sendLogLevelRequest}
-          loggingSupported={!!serverCapabilities?.logging || false}
-          onServersChange={setCurrentServers}
-          connectionType={connectionType}
-          setConnectionType={setConnectionType}
-          configRefreshKey={configRefreshKey}
-        />
-        <div
-          onMouseDown={handleSidebarDragStart}
+        {/* Collapse / Expand toggle */}
+        <button
+          onClick={() => setSidebarCollapsed((prev) => !prev)}
+          className="absolute top-3 right-1 z-20 p-1 rounded hover:bg-muted transition-colors text-muted-foreground hover:text-foreground"
+          title={sidebarCollapsed ? "Expand sidebar" : "Collapse sidebar"}
           style={{
-            cursor: "col-resize",
-            position: "absolute",
-            top: 0,
-            right: 0,
-            width: 6,
-            height: "100%",
-            zIndex: 10,
-            background: isSidebarDragging ? "rgba(0,0,0,0.08)" : "transparent",
+            width: 28,
+            height: 28,
+            display: "flex",
+            alignItems: "center",
+            justifyContent: "center",
           }}
-          aria-label="Resize sidebar"
-          data-testid="sidebar-drag-handle"
-        />
+        >
+          {sidebarCollapsed ? (
+            <PanelLeft className="w-4 h-4" />
+          ) : (
+            <PanelLeftClose className="w-4 h-4" />
+          )}
+        </button>
+
+        {!sidebarCollapsed && (
+          <>
+            <Sidebar
+              connectionStatus={connectionStatus}
+              transportType={transportType}
+              setTransportType={setTransportType}
+              command={command}
+              setCommand={setCommand}
+              args={args}
+              setArgs={setArgs}
+              configFilePath={configFilePath}
+              setConfigFilePath={setConfigFilePath}
+              sseUrl={sseUrl}
+              setSseUrl={setSseUrl}
+              env={env}
+              setEnv={setEnv}
+              config={config}
+              setConfig={setConfig}
+              customHeaders={customHeaders}
+              setCustomHeaders={setCustomHeaders}
+              oauthClientId={oauthClientId}
+              setOauthClientId={setOauthClientId}
+              oauthClientSecret={oauthClientSecret}
+              setOauthClientSecret={setOauthClientSecret}
+              oauthScope={oauthScope}
+              setOauthScope={setOauthScope}
+              onConnect={connectMcpServer}
+              onDisconnect={disconnectMcpServer}
+              logLevel={logLevel}
+              sendLogLevelRequest={sendLogLevelRequest}
+              loggingSupported={!!serverCapabilities?.logging || false}
+              onServersChange={setCurrentServers}
+              connectionType={connectionType}
+              setConnectionType={setConnectionType}
+              configRefreshKey={configRefreshKey}
+            />
+            <div
+              onMouseDown={handleSidebarDragStart}
+              style={{
+                cursor: "col-resize",
+                position: "absolute",
+                top: 0,
+                right: 0,
+                width: 6,
+                height: "100%",
+                zIndex: 10,
+                background: isSidebarDragging
+                  ? "rgba(0,0,0,0.08)"
+                  : "transparent",
+              }}
+              aria-label="Resize sidebar"
+              data-testid="sidebar-drag-handle"
+            />
+          </>
+        )}
       </div>
       <div className="flex-1 flex flex-col overflow-hidden">
         <div className="flex-1 overflow-auto">
