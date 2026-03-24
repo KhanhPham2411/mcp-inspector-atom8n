@@ -1130,7 +1130,12 @@ const MCPStoreTab = ({
                           <div className="flex items-start gap-2 text-sm text-muted-foreground min-w-0">
                             <span className="shrink-0">Command:</span>
                             <code
-                              className="bg-muted px-2 py-1 rounded text-xs min-w-0 flex-1 truncate block"
+                              className="bg-muted px-2 py-1 rounded text-xs min-w-0 flex-1 overflow-hidden block"
+                              style={{
+                                display: "-webkit-box",
+                                WebkitLineClamp: 2,
+                                WebkitBoxOrient: "vertical" as const,
+                              }}
                               title={`${server.command} ${server.args.join(" ")}`}
                             >
                               {basenamePath(server.command)}{" "}
