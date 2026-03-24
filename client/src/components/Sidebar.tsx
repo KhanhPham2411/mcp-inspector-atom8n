@@ -15,8 +15,8 @@ import {
   Copy,
   CheckCheck,
   Loader2,
-  FolderOpen,
   FileCog,
+  FileText,
 } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
@@ -784,7 +784,7 @@ const Sidebar = ({
               {_configFilePath && !isLoadingDefault && (
                 <button
                   className="flex items-center gap-1 text-xs text-blue-500 hover:text-blue-700 hover:underline cursor-pointer truncate max-w-full text-left"
-                  title="Open config folder"
+                  title="Open config file"
                   onClick={async () => {
                     try {
                       const baseUrl = getMCPProxyAddress(config);
@@ -794,7 +794,7 @@ const Sidebar = ({
                           _configFilePath.endsWith(cp.replace("~", "")),
                         ) || _configFilePath;
                       await fetch(
-                        `${baseUrl}/open-config-folder?path=${encodeURIComponent(tilePath)}`,
+                        `${baseUrl}/open-config-file?path=${encodeURIComponent(tilePath)}`,
                         {
                           method: "POST",
                           headers: {
@@ -804,11 +804,11 @@ const Sidebar = ({
                         },
                       );
                     } catch (err) {
-                      console.error("Failed to open config folder:", err);
+                      console.error("Failed to open config file:", err);
                     }
                   }}
                 >
-                  <FolderOpen className="w-3 h-3 shrink-0" />
+                  <FileText className="w-3 h-3 shrink-0" />
                   <span className="truncate">{_configFilePath}</span>
                 </button>
               )}

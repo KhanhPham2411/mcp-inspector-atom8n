@@ -931,16 +931,16 @@ const MCPStoreTab = ({
       }
       groups[sourceName].push(server);
     }
-    // Sort: config-based source first
+    // Sort: n8n workflows first, then config-based source, then the rest
     const configName = configBasedSource?.name;
     const entries = Object.entries(groups);
-    if (configName) {
-      entries.sort(([a], [b]) => {
-        if (a === configName) return -1;
-        if (b === configName) return 1;
-        return 0;
-      });
-    }
+    entries.sort(([a], [b]) => {
+      if (a === "n8n workflows") return -1;
+      if (b === "n8n workflows") return 1;
+      if (configName && a === configName) return -1;
+      if (configName && b === configName) return 1;
+      return 0;
+    });
     return Object.fromEntries(entries);
   }, [filteredServers, configBasedSource]);
 
