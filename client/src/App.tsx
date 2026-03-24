@@ -1100,18 +1100,29 @@ const App = () => {
           <div className="flex flex-col items-center gap-2 mt-12 px-1">
             <button
               onClick={() => {
-                setSidebarCollapsed(false);
+                localStorage.setItem("activeConfigPath", "~/.cursor/mcp.json");
+                setConfigRefreshKey((k) => k + 1);
               }}
-              className="p-1.5 rounded hover:bg-muted transition-colors"
+              className={`p-1.5 rounded hover:bg-muted transition-colors ${
+                configFilePath.includes("cursor") ? "ring-2 ring-green-500" : ""
+              }`}
               title="Cursor"
             >
               <img src="/cursor.svg" alt="Cursor" className="w-5 h-5" />
             </button>
             <button
               onClick={() => {
-                setSidebarCollapsed(false);
+                localStorage.setItem(
+                  "activeConfigPath",
+                  "~/.gemini/antigravity/mcp_config.json",
+                );
+                setConfigRefreshKey((k) => k + 1);
               }}
-              className="p-1.5 rounded hover:bg-muted transition-colors"
+              className={`p-1.5 rounded hover:bg-muted transition-colors ${
+                configFilePath.includes("antigravity")
+                  ? "ring-2 ring-green-500"
+                  : ""
+              }`}
               title="Antigravity"
             >
               <img
