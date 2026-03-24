@@ -210,6 +210,9 @@ const App = () => {
     const saved = localStorage.getItem("sidebarCollapsed");
     return saved === "true";
   });
+  const [activeConfigPath, setActiveConfigPath] = useState(
+    () => localStorage.getItem("activeConfigPath") || "",
+  );
 
   // Persist sidebar collapsed state
   useEffect(() => {
@@ -1100,11 +1103,14 @@ const App = () => {
           <div className="flex flex-col items-center gap-2 mt-12 px-1">
             <button
               onClick={() => {
+                setActiveConfigPath("~/.cursor/mcp.json");
                 localStorage.setItem("activeConfigPath", "~/.cursor/mcp.json");
                 setConfigRefreshKey((k) => k + 1);
               }}
               className={`p-1.5 rounded hover:bg-muted transition-colors ${
-                configFilePath.includes("cursor") ? "ring-2 ring-green-500" : ""
+                activeConfigPath === "~/.cursor/mcp.json"
+                  ? "ring-2 ring-green-500"
+                  : ""
               }`}
               title="Cursor"
             >
@@ -1112,6 +1118,7 @@ const App = () => {
             </button>
             <button
               onClick={() => {
+                setActiveConfigPath("~/.gemini/antigravity/mcp_config.json");
                 localStorage.setItem(
                   "activeConfigPath",
                   "~/.gemini/antigravity/mcp_config.json",
@@ -1119,7 +1126,7 @@ const App = () => {
                 setConfigRefreshKey((k) => k + 1);
               }}
               className={`p-1.5 rounded hover:bg-muted transition-colors ${
-                configFilePath.includes("antigravity")
+                activeConfigPath === "~/.gemini/antigravity/mcp_config.json"
                   ? "ring-2 ring-green-500"
                   : ""
               }`}
