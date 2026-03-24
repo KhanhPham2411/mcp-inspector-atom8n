@@ -1116,7 +1116,15 @@ const MCPStoreTab = ({
                     >
                       <CardHeader className="pb-3">
                         <div className="flex items-center gap-2">
-                          <Package className="w-5 h-5 text-primary" />
+                          {server.source === "n8n workflows" ? (
+                            <img
+                              src="/n8n-logo.png"
+                              alt="n8n"
+                              className="w-5 h-5"
+                            />
+                          ) : (
+                            <Package className="w-5 h-5 text-primary" />
+                          )}
                           <CardTitle className="text-lg">
                             {server.name}
                           </CardTitle>
