@@ -72,6 +72,10 @@ interface ServerConfig {
   autoApprove?: string[];
 }
 
+// n8n workflow MCP: all n8n files are managed under a single config key
+const N8N_MCP_KEY = "n8n-workflow-mcp";
+const N8N_MCP_ARGS_PREFIX = ["exec", "n8n-atom-cli", "mcp"];
+
 interface MCPStoreTabProps {
   config: InspectorConfig;
   currentServers?: Record<string, ServerConfig>;
@@ -397,6 +401,24 @@ const MCPStoreTab = ({
 
   // Check if a server is already installed
   const isServerInstalled = (server: MCPServer): boolean => {
+    // n8n workflows: check if the file path is in the n8n-workflow-mcp args
+    if (server.source === "n8n workflows") {
+      const n8nEntry = currentServers[N8N_MCP_KEY];
+      if (!n8nEntry) return false;
+      const n8nArgs = Array.isArray(n8nEntry.args) ? n8nEntry.args : [];
+      // The file path is the last element of this server's args
+      const filePath = server.args?.[server.args.length - 1];
+      const installed = filePath ? n8nArgs.includes(filePath) : false;
+      console.log(
+        "[MCPStore:n8n] isServerInstalled",
+        server.name,
+        "filePath:",
+        filePath,
+        "installed:",
+        installed,
+      );
+      return installed;
+    }
     return Object.values(currentServers).some(
       (existingServer: ServerConfig) => {
         // Check if command and args match
@@ -427,28 +449,68 @@ const MCPStoreTab = ({
     });
     setInstallingServer(serverKey);
     try {
-      // Generate the server configuration
-      const serverConfig = {
-        command: server.command,
-        args: server.args,
-        env: server.env,
-        disabled: server.disabled,
-        autoApprove: server.autoApprove,
-      };
-      console.log("[MCPStore] Generated serverConfig:", serverConfig);
+      let updatedServers: Record<string, ServerConfig>;
 
-      // Generate a unique server name (use the store name or create one)
-      const serverName = server.name.toLowerCase().replace(/[^a-z0-9-]/g, "-");
-      const finalServerName = Object.keys(currentServers).includes(serverName)
-        ? `${serverName}-${Date.now()}`
-        : serverName;
-      console.log("[MCPStore] Server name:", { serverName, finalServerName });
+      // n8n workflows: add file path to the shared n8n-workflow-mcp entry
+      if (server.source === "n8n workflows") {
+        const filePath = server.args?.[server.args.length - 1];
+        console.log(
+          "[MCPStore:n8n] Installing n8n workflow, filePath:",
+          filePath,
+        );
+        const existingEntry = currentServers[N8N_MCP_KEY];
+        const existingArgs = existingEntry
+          ? Array.isArray(existingEntry.args)
+            ? existingEntry.args
+            : []
+          : [...N8N_MCP_ARGS_PREFIX];
 
-      // Add the new server to current configuration
-      const updatedServers = {
-        ...currentServers,
-        [finalServerName]: serverConfig,
-      };
+        // Only add if not already present
+        const newArgs = existingArgs.includes(filePath)
+          ? existingArgs
+          : [...existingArgs, filePath];
+
+        updatedServers = {
+          ...currentServers,
+          [N8N_MCP_KEY]: {
+            command: "npm",
+            args: newArgs,
+            env: existingEntry?.env || {},
+            disabled: existingEntry?.disabled || false,
+            autoApprove: existingEntry?.autoApprove || [],
+          },
+        };
+        console.log("[MCPStore:n8n] Updated n8n-workflow-mcp args:", newArgs);
+      } else {
+        // Standard server install
+        // Generate the server configuration
+        const serverConfig = {
+          command: server.command,
+          args: server.args,
+          env: server.env,
+          disabled: server.disabled,
+          autoApprove: server.autoApprove,
+        };
+        console.log("[MCPStore] Generated serverConfig:", serverConfig);
+
+        // Generate a unique server name (use the store name or create one)
+        const serverName = server.name
+          .toLowerCase()
+          .replace(/[^a-z0-9-]/g, "-");
+        const finalServerName = Object.keys(currentServers).includes(serverName)
+          ? `${serverName}-${Date.now()}`
+          : serverName;
+        console.log("[MCPStore] Server name:", {
+          serverName,
+          finalServerName,
+        });
+
+        // Add the new server to current configuration
+        updatedServers = {
+          ...currentServers,
+          [finalServerName]: serverConfig,
+        };
+      }
       console.log("[MCPStore] updatedServers:", updatedServers);
 
       // Update the MCP configuration file via API
@@ -503,7 +565,7 @@ const MCPStoreTab = ({
 
       toast({
         title: "Server Installed",
-        description: `${server.name} has been added to your MCP configuration file as "${finalServerName}".`,
+        description: `${server.name} has been added to your MCP configuration.`,
       });
 
       // Notify parent to refresh sidebar config counts & server list
@@ -572,25 +634,70 @@ const MCPStoreTab = ({
     });
     setInstallingServer(serverKey);
     try {
-      // Find the server name in current configuration
-      const serverName = Object.keys(currentServers).find((name) => {
-        const existingServer = currentServers[name];
-        if (existingServer.command === server.command) {
-          const existingArgs = Array.isArray(existingServer.args)
-            ? existingServer.args
+      let updatedServers: Record<string, ServerConfig>;
+      let serverName: string | undefined;
+
+      // n8n workflows: remove file path from the shared n8n-workflow-mcp entry
+      if (server.source === "n8n workflows") {
+        const filePath = server.args?.[server.args.length - 1];
+        console.log(
+          "[MCPStore:n8n] Uninstalling n8n workflow, filePath:",
+          filePath,
+        );
+        const existingEntry = currentServers[N8N_MCP_KEY];
+        if (existingEntry) {
+          serverName = N8N_MCP_KEY;
+          const existingArgs = Array.isArray(existingEntry.args)
+            ? existingEntry.args
             : [];
-          const serverArgs = Array.isArray(server.args) ? server.args : [];
-          return JSON.stringify(existingArgs) === JSON.stringify(serverArgs);
+          const newArgs = existingArgs.filter((arg) => arg !== filePath);
+
+          updatedServers = { ...currentServers };
+          // If only the prefix args remain (no file paths), remove the entry
+          if (newArgs.length <= N8N_MCP_ARGS_PREFIX.length) {
+            console.log(
+              "[MCPStore:n8n] No n8n files left, removing n8n-workflow-mcp entry",
+            );
+            delete updatedServers[N8N_MCP_KEY];
+          } else {
+            updatedServers[N8N_MCP_KEY] = {
+              ...existingEntry,
+              args: newArgs,
+            };
+          }
+          console.log(
+            "[MCPStore:n8n] Updated n8n-workflow-mcp args after removal:",
+            newArgs,
+          );
+        } else {
+          serverName = undefined;
+          updatedServers = { ...currentServers };
         }
-        return false;
-      });
+      } else {
+        // Standard server uninstall
+        // Find the server name in current configuration
+        serverName = Object.keys(currentServers).find((name) => {
+          const existingServer = currentServers[name];
+          if (existingServer.command === server.command) {
+            const existingArgs = Array.isArray(existingServer.args)
+              ? existingServer.args
+              : [];
+            const serverArgs = Array.isArray(server.args) ? server.args : [];
+            return JSON.stringify(existingArgs) === JSON.stringify(serverArgs);
+          }
+          return false;
+        });
+
+        // Generate configuration without this server
+        updatedServers = { ...currentServers };
+        if (serverName) {
+          delete updatedServers[serverName];
+        }
+      }
 
       console.log("[MCPStore] Found server to uninstall:", serverName);
 
       if (serverName) {
-        // Generate configuration without this server
-        const updatedServers = { ...currentServers };
-        delete updatedServers[serverName];
         console.log(
           "[MCPStore] Updated servers after removal:",
           Object.keys(updatedServers),
