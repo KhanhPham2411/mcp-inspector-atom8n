@@ -1455,7 +1455,7 @@ const MCPStoreTab = ({
                   </div>
                   <div className="flex-1 min-w-0">
                     <div className="font-medium mb-1 inline-flex items-center gap-1.5">
-                      n8n workflows
+                      Workspace
                     </div>
                     <div className="text-xs text-muted-foreground mt-1">
                       Lists all .n8n workflow files in the current VSCode
