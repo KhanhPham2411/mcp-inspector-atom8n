@@ -220,6 +220,54 @@ const App = () => {
   }, [sidebarCollapsed]);
   const [configRefreshKey, setConfigRefreshKey] = useState(0);
 
+  // When sidebar is collapsed, load config directly since Sidebar is unmounted
+  useEffect(() => {
+    if (!sidebarCollapsed || configRefreshKey === 0) return;
+    const path = localStorage.getItem("activeConfigPath");
+    if (!path) return;
+
+    const load = async () => {
+      try {
+        const baseUrl = getMCPProxyAddress(config);
+        const { token, header } = getMCPProxyAuthToken(config);
+        const url = `${baseUrl}/mcp-config?path=${encodeURIComponent(path)}`;
+        const resp = await fetch(url, {
+          headers: {
+            "Content-Type": "application/json",
+            [header]: token ? `Bearer ${token}` : "",
+          },
+        });
+        if (!resp.ok) return;
+        const data = await resp.json();
+        if (data.path) setConfigFilePath(data.path);
+        const configData = data.config as any;
+        const servers = (configData.servers || configData.mcpServers) as
+          | Record<string, any>
+          | undefined;
+        if (servers) {
+          setCurrentServers(servers);
+          // Apply first server config
+          const names = Object.keys(servers);
+          if (names.length > 0) {
+            const first = servers[names[0]];
+            if (first.command) {
+              setTransportType("stdio");
+              setCommand(first.command);
+              setArgs(first.args ? first.args.join(" ") : "");
+              if (first.env) setEnv(first.env);
+            }
+          }
+        } else {
+          setCurrentServers({});
+        }
+      } catch (e) {
+        console.error("[App] Error loading config while sidebar collapsed:", e);
+      }
+    };
+    load();
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [configRefreshKey, sidebarCollapsed]);
+
   const [authState, setAuthState] =
     useState<AuthDebuggerState>(EMPTY_DEBUGGER_STATE);
 
