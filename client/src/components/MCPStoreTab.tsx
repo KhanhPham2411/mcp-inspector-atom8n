@@ -109,6 +109,15 @@ const MCPStoreTab = ({
     const saved = localStorage.getItem("mcpStoreConfigSourceEnabled");
     return saved !== null ? JSON.parse(saved) : true;
   });
+  // n8n workflow source: enabled toggle
+  const [n8nSourceEnabled, setN8nSourceEnabled] = useState(() => {
+    const saved = localStorage.getItem("mcpStoreN8nSourceEnabled");
+    console.log(
+      "[MCPStore:n8n] Initializing n8nSourceEnabled from localStorage:",
+      saved,
+    );
+    return saved !== null ? JSON.parse(saved) : true;
+  });
   const [newSource, setNewSource] = useState({
     name: "",
     url: "",
@@ -165,6 +174,18 @@ const MCPStoreTab = ({
       JSON.stringify(configSourceEnabled),
     );
   }, [configSourceEnabled]);
+
+  // Save n8nSourceEnabled to localStorage whenever it changes
+  useEffect(() => {
+    console.log(
+      "[MCPStore:n8n] Persisting n8nSourceEnabled:",
+      n8nSourceEnabled,
+    );
+    localStorage.setItem(
+      "mcpStoreN8nSourceEnabled",
+      JSON.stringify(n8nSourceEnabled),
+    );
+  }, [n8nSourceEnabled]);
 
   // Fetch MCP servers from all enabled sources
   const fetchMCPServers = useCallback(async () => {
@@ -253,6 +274,65 @@ const MCPStoreTab = ({
         }
       }
 
+      // Fetch n8n workflow files from the VSCode workspace via postMessage
+      if (n8nSourceEnabled) {
+        console.log(
+          "[MCPStore:n8n] Requesting n8n workflow files via postMessage",
+        );
+        try {
+          const n8nServers = await new Promise<MCPServer[]>((resolve) => {
+            const timeout = setTimeout(() => {
+              console.log(
+                "[MCPStore:n8n] Timed out waiting for n8nFileList response",
+              );
+              window.removeEventListener("message", handler);
+              resolve([]);
+            }, 5000);
+
+            const handler = (event: MessageEvent) => {
+              if (event.data && event.data.type === "n8nFileList") {
+                console.log(
+                  "[MCPStore:n8n] Received n8nFileList response, files:",
+                  event.data.files?.length,
+                  "error:",
+                  event.data.error,
+                );
+                clearTimeout(timeout);
+                window.removeEventListener("message", handler);
+                const files = event.data.files || [];
+                const servers: MCPServer[] = files.map((f: any) => ({
+                  name: f.name,
+                  command: f.command || "npx",
+                  args: f.args || [],
+                  env: {},
+                  disabled: false,
+                  autoApprove: [],
+                  description: `n8n workflow: ${f.name}`,
+                  source: "n8n workflows",
+                }));
+                resolve(servers);
+              }
+            };
+
+            window.addEventListener("message", handler);
+            // Send request to the parent (VSCode webview bridge)
+            window.parent.postMessage({ type: "listN8nFiles" }, "*");
+          });
+
+          console.log(
+            `[MCPStore:n8n] Got ${n8nServers.length} n8n workflow server(s)`,
+          );
+          allServers.push(...n8nServers);
+        } catch (error) {
+          console.error(
+            "[MCPStore:n8n] Error requesting n8n workflow files:",
+            error,
+          );
+        }
+      } else {
+        console.log("[MCPStore:n8n] Skipping n8n source (disabled)");
+      }
+
       setAvailableServers(allServers);
     } catch (error) {
       console.error("Error fetching MCP servers:", error);
@@ -264,7 +344,14 @@ const MCPStoreTab = ({
     } finally {
       setIsLoading(false);
     }
-  }, [sources, toast, config, configBasedSource, configSourceEnabled]);
+  }, [
+    sources,
+    toast,
+    config,
+    configBasedSource,
+    configSourceEnabled,
+    n8nSourceEnabled,
+  ]);
 
   // Load servers on component mount and when sources change
   useEffect(() => {
@@ -1177,6 +1264,38 @@ const MCPStoreTab = ({
                 </div>
               </div>
             )}
+
+            {/* n8n Workflows Source */}
+            <div>
+              <Label className="text-sm font-medium mb-2 block">
+                n8n Workflows Source
+              </Label>
+              <div className="space-y-2">
+                <div className="flex items-start gap-3 p-4 border rounded-lg bg-muted/30">
+                  <div className="flex-shrink-0 pt-1">
+                    <Switch
+                      checked={n8nSourceEnabled}
+                      onCheckedChange={(checked) => {
+                        console.log(
+                          "[MCPStore:n8n] Toggle n8n source:",
+                          checked,
+                        );
+                        setN8nSourceEnabled(checked);
+                      }}
+                    />
+                  </div>
+                  <div className="flex-1 min-w-0">
+                    <div className="font-medium mb-1 inline-flex items-center gap-1.5">
+                      n8n workflows
+                    </div>
+                    <div className="text-xs text-muted-foreground mt-1">
+                      Lists all .n8n workflow files in the current VSCode
+                      workspace
+                    </div>
+                  </div>
+                </div>
+              </div>
+            </div>
 
             {/* Add New Source */}
             <div className="border-t pt-4">
