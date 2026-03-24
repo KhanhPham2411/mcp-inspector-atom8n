@@ -117,6 +117,8 @@ const MCPStoreTab = ({
     new Set(),
   );
   const [showSourceConfig, setShowSourceConfig] = useState(false);
+  const [commandPopupServer, setCommandPopupServer] =
+    useState<MCPServer | null>(null);
   const [configSourceEnabled, setConfigSourceEnabled] = useState(() => {
     const saved = localStorage.getItem("mcpStoreConfigSourceEnabled");
     return saved !== null ? JSON.parse(saved) : true;
@@ -1130,13 +1132,14 @@ const MCPStoreTab = ({
                           <div className="flex items-start gap-2 text-sm text-muted-foreground min-w-0">
                             <span className="shrink-0">Command:</span>
                             <code
-                              className="bg-muted px-2 py-1 rounded text-xs min-w-0 flex-1 overflow-hidden block"
+                              className="bg-muted px-2 py-1 rounded text-xs min-w-0 flex-1 overflow-hidden block cursor-pointer hover:bg-muted/80 transition-colors"
                               style={{
                                 display: "-webkit-box",
                                 WebkitLineClamp: 2,
                                 WebkitBoxOrient: "vertical" as const,
                               }}
-                              title={`${server.command} ${server.args.join(" ")}`}
+                              title="Click to view full command"
+                              onClick={() => setCommandPopupServer(server)}
                             >
                               {basenamePath(server.command)}{" "}
                               {server.args
@@ -1471,6 +1474,48 @@ const MCPStoreTab = ({
               </div>
             </div>
           </div>
+        </DialogContent>
+      </Dialog>
+
+      {/* Command detail popup */}
+      <Dialog
+        open={!!commandPopupServer}
+        onOpenChange={(open) => {
+          if (!open) setCommandPopupServer(null);
+        }}
+      >
+        <DialogContent className="max-w-lg">
+          <DialogHeader>
+            <DialogTitle className="flex items-center gap-2">
+              <Package className="w-5 h-5" />
+              {commandPopupServer?.name} — Command
+            </DialogTitle>
+            <DialogDescription>Full command and arguments</DialogDescription>
+          </DialogHeader>
+          {commandPopupServer && (
+            <div className="space-y-3">
+              <div>
+                <Label className="text-xs text-muted-foreground">Command</Label>
+                <code className="block bg-muted px-3 py-2 rounded text-sm mt-1 break-all">
+                  {commandPopupServer.command}
+                </code>
+              </div>
+              {commandPopupServer.args.length > 0 && (
+                <div>
+                  <Label className="text-xs text-muted-foreground">
+                    Arguments
+                  </Label>
+                  <div className="bg-muted px-3 py-2 rounded mt-1 space-y-1">
+                    {commandPopupServer.args.map((arg, i) => (
+                      <code key={i} className="block text-sm break-all">
+                        {arg}
+                      </code>
+                    ))}
+                  </div>
+                </div>
+              )}
+            </div>
+          )}
         </DialogContent>
       </Dialog>
     </div>
