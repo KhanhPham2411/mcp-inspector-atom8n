@@ -213,18 +213,38 @@ const App = () => {
     setAuthState((prev) => ({ ...prev, ...updates }));
   };
 
+  // Ref to track pending test connection config — triggers connect via useEffect
+  const pendingTestConnectRef = useRef<{
+    command?: string;
+    args?: string;
+    sseUrl?: string;
+    transportType: "stdio" | "sse" | "streamable-http";
+  } | null>(null);
+
   const handleTestConnection = async (serverConfig: any) => {
     // Apply the server configuration for testing
     if (serverConfig.command) {
+      const newCmd = serverConfig.command;
+      const newArgs = serverConfig.args ? serverConfig.args.join(" ") : "";
       setTransportType("stdio");
-      setCommand(serverConfig.command);
-      setArgs(serverConfig.args ? serverConfig.args.join(" ") : "");
+      setCommand(newCmd);
+      setArgs(newArgs);
       if (serverConfig.env) {
         setEnv(serverConfig.env);
       }
+      pendingTestConnectRef.current = {
+        command: newCmd,
+        args: newArgs,
+        transportType: "stdio",
+      };
     } else if (serverConfig.type === "sse" || serverConfig.url) {
+      const newUrl = serverConfig.url || serverConfig.sseUrl || "";
       setTransportType("sse");
-      setSseUrl(serverConfig.url || serverConfig.sseUrl || "");
+      setSseUrl(newUrl);
+      pendingTestConnectRef.current = {
+        sseUrl: newUrl,
+        transportType: "sse",
+      };
     }
 
     // Navigate to Tools tab for immediate feedback
@@ -247,12 +267,8 @@ const App = () => {
       title: "Connecting",
       description: "Attempting to connect to the selected MCP server...",
     });
-
-    // Defer connect slightly to allow state updates to flush
-    setTimeout(() => {
-      void connectMcpServer();
-    }, 10);
   };
+
   const nextRequestId = useRef(0);
   const rootsRef = useRef<Root[]>([]);
 
@@ -376,6 +392,23 @@ const App = () => {
     getRoots: () => rootsRef.current,
     defaultLoggingLevel: logLevel,
   });
+
+  // Effect: connect once React state matches the pending test connection config
+  useEffect(() => {
+    const pending = pendingTestConnectRef.current;
+    if (!pending) return;
+
+    // Verify state has flushed to match the pending config
+    if (pending.transportType === "stdio") {
+      if (command !== pending.command || args !== pending.args) return;
+    } else {
+      if (sseUrl !== pending.sseUrl) return;
+    }
+
+    // State is in sync – clear flag and connect
+    pendingTestConnectRef.current = null;
+    void connectMcpServer();
+  }, [command, args, sseUrl, transportType, connectMcpServer]);
 
   useEffect(() => {
     if (serverCapabilities) {
