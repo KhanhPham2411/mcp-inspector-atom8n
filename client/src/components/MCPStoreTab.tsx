@@ -262,21 +262,48 @@ const MCPStoreTab = ({
               | Record<string, any>
               | undefined;
             if (servers) {
-              const configServers = Object.entries(servers).map(
-                ([name, serverCfg]: [string, any]) => ({
-                  name,
-                  command: serverCfg.command || "",
-                  args: serverCfg.args || [],
-                  env: serverCfg.env || {},
-                  disabled: serverCfg.disabled || false,
-                  autoApprove: serverCfg.autoApprove || [],
-                  description: serverCfg.description,
-                  version: serverCfg.version,
-                  author: serverCfg.author,
-                  license: serverCfg.license,
-                  source: configBasedSource.name,
-                }),
-              );
+              const configServers: MCPServer[] = [];
+              for (const [name, serverCfg] of Object.entries(servers) as [
+                string,
+                any,
+              ][]) {
+                // Expand n8n-workflow-mcp into individual n8n workflow items
+                if (name === N8N_MCP_KEY) {
+                  const args: string[] = serverCfg.args || [];
+                  // File paths come after the prefix (e.g. ["exec","n8n-atom-cli","mcp"])
+                  const filePaths = args.slice(N8N_MCP_ARGS_PREFIX.length);
+                  for (const filePath of filePaths) {
+                    const fileName = basenamePath(filePath).replace(
+                      /\.n8n$/,
+                      "",
+                    );
+                    configServers.push({
+                      name: fileName,
+                      command: serverCfg.command || "",
+                      args: [...N8N_MCP_ARGS_PREFIX, filePath],
+                      env: serverCfg.env || {},
+                      disabled: serverCfg.disabled || false,
+                      autoApprove: serverCfg.autoApprove || [],
+                      description: `n8n workflow: ${fileName}`,
+                      source: configBasedSource.name,
+                    });
+                  }
+                } else {
+                  configServers.push({
+                    name,
+                    command: serverCfg.command || "",
+                    args: serverCfg.args || [],
+                    env: serverCfg.env || {},
+                    disabled: serverCfg.disabled || false,
+                    autoApprove: serverCfg.autoApprove || [],
+                    description: serverCfg.description,
+                    version: serverCfg.version,
+                    author: serverCfg.author,
+                    license: serverCfg.license,
+                    source: configBasedSource.name,
+                  });
+                }
+              }
               allServers.push(...configServers);
             }
           }
@@ -322,7 +349,7 @@ const MCPStoreTab = ({
                   disabled: false,
                   autoApprove: [],
                   description: `n8n workflow: ${f.name}`,
-                  source: "n8n workflows",
+                  source: "Workspace",
                 }));
                 resolve(servers);
               }
@@ -409,10 +436,15 @@ const MCPStoreTab = ({
     );
   };
 
+  /** Detect n8n workflow items from any source (n8n workflows or expanded config). */
+  const isN8nWorkflow = (server: MCPServer): boolean =>
+    server.source === "Workspace" ||
+    !!server.description?.startsWith("n8n workflow:");
+
   // Check if a server is already installed
   const isServerInstalled = (server: MCPServer): boolean => {
     // n8n workflows: check if the file path is in the n8n-workflow-mcp args
-    if (server.source === "n8n workflows") {
+    if (isN8nWorkflow(server)) {
       const n8nEntry = currentServers[N8N_MCP_KEY];
       if (!n8nEntry) return false;
       const n8nArgs = Array.isArray(n8nEntry.args) ? n8nEntry.args : [];
@@ -462,7 +494,7 @@ const MCPStoreTab = ({
       let updatedServers: Record<string, ServerConfig>;
 
       // n8n workflows: add file path to the shared n8n-workflow-mcp entry
-      if (server.source === "n8n workflows") {
+      if (isN8nWorkflow(server)) {
         const filePath = server.args?.[server.args.length - 1];
         console.log(
           "[MCPStore:n8n] Installing n8n workflow, filePath:",
@@ -648,7 +680,7 @@ const MCPStoreTab = ({
       let serverName: string | undefined;
 
       // n8n workflows: remove file path from the shared n8n-workflow-mcp entry
-      if (server.source === "n8n workflows") {
+      if (isN8nWorkflow(server)) {
         const filePath = server.args?.[server.args.length - 1];
         console.log(
           "[MCPStore:n8n] Uninstalling n8n workflow, filePath:",
@@ -945,8 +977,8 @@ const MCPStoreTab = ({
     const configName = configBasedSource?.name;
     const entries = Object.entries(groups);
     entries.sort(([a], [b]) => {
-      if (a === "n8n workflows") return -1;
-      if (b === "n8n workflows") return 1;
+      if (a === "Workspace") return -1;
+      if (b === "Workspace") return 1;
       if (configName && a === configName) return -1;
       if (configName && b === configName) return 1;
       return 0;
@@ -1116,7 +1148,7 @@ const MCPStoreTab = ({
                     >
                       <CardHeader className="pb-3">
                         <div className="flex items-center gap-2">
-                          {server.source === "n8n workflows" ? (
+                          {isN8nWorkflow(server) ? (
                             <img
                               src="/n8n-logo.png"
                               alt="n8n"
