@@ -72,10 +72,6 @@ interface ServerConfig {
   autoApprove?: string[];
 }
 
-// n8n workflow MCP: all n8n files are managed under a single config key
-const N8N_MCP_KEY = "n8n-workflow-mcp";
-const N8N_MCP_ARGS_PREFIX = ["exec", "n8n-atom-cli", "mcp"];
-
 interface MCPStoreTabProps {
   config: InspectorConfig;
   currentServers?: Record<string, ServerConfig>;
@@ -84,6 +80,18 @@ interface MCPStoreTabProps {
   configFilePath?: string;
   onConfigFileUpdated?: () => void;
 }
+
+/** Last path segment for store cards (POSIX and Windows separators). */
+function basenamePath(p: string): string {
+  if (!p) return p;
+  const normalized = p.replace(/\\/g, "/");
+  const parts = normalized.split("/").filter(Boolean);
+  return parts.length ? (parts[parts.length - 1] ?? p) : p;
+}
+
+// n8n workflow MCP: all n8n files are managed under a single config key
+const N8N_MCP_KEY = "n8n-workflow-mcp";
+const N8N_MCP_ARGS_PREFIX = ["exec", "n8n-atom-cli", "mcp"];
 
 const MCPStoreTab = ({
   config,
@@ -1119,10 +1127,16 @@ const MCPStoreTab = ({
                       </CardHeader>
                       <CardContent className="pt-0">
                         <div className="space-y-3">
-                          <div className="flex items-center gap-2 text-sm text-muted-foreground">
-                            <span>Command:</span>
-                            <code className="bg-muted px-2 py-1 rounded text-xs">
-                              {server.command} {server.args.join(" ")}
+                          <div className="flex items-start gap-2 text-sm text-muted-foreground min-w-0">
+                            <span className="shrink-0">Command:</span>
+                            <code
+                              className="bg-muted px-2 py-1 rounded text-xs min-w-0 flex-1 truncate block"
+                              title={`${server.command} ${server.args.join(" ")}`}
+                            >
+                              {basenamePath(server.command)}{" "}
+                              {server.args
+                                .map((a) => basenamePath(a))
+                                .join(" ")}
                             </code>
                           </div>
 
