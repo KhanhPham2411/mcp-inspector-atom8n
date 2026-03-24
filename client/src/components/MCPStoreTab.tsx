@@ -1314,7 +1314,7 @@ const MCPStoreTab = ({
 
       {/* Source Configuration Dialog */}
       <Dialog open={showSourceConfig} onOpenChange={setShowSourceConfig}>
-        <DialogContent className="max-w-4xl w-full">
+        <DialogContent className="max-w-4xl w-full max-h-[90vh] flex flex-col">
           <DialogHeader>
             <DialogTitle>Configure MCP Sources</DialogTitle>
             <DialogDescription>
@@ -1323,7 +1323,7 @@ const MCPStoreTab = ({
             </DialogDescription>
           </DialogHeader>
 
-          <div className="space-y-4">
+          <div className="space-y-4 overflow-y-auto flex-1 pr-1">
             {/* Existing Sources */}
             <div>
               <Label className="text-sm font-medium mb-2 block">
