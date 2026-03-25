@@ -1054,7 +1054,11 @@ const MCPStoreTab = ({
           const isCollapsed = collapsedGroups.has(sourceName);
           const sourceUrl = urlForSourceName(sourceName);
           return (
-            <div key={sourceName} className="border rounded-lg">
+            <div
+              key={sourceName}
+              className="border rounded-lg"
+              style={{ containerType: "inline-size" }}
+            >
               <div className="flex items-center gap-2 px-4 py-3 rounded-t-lg">
                 <button
                   onClick={() => toggleGroup(sourceName)}
@@ -1080,9 +1084,10 @@ const MCPStoreTab = ({
                       servers.every((s) => isServerInstalled(s)) ||
                       installingServer !== null
                     }
+                    title="Install All"
                   >
-                    <Download className="w-3 h-3 mr-1" />
-                    Install All
+                    <Download className="w-3 h-3 shrink-0" />
+                    <span className="group-header-label">Install All</span>
                   </Button>
                   <Button
                     variant="outline"
@@ -1093,9 +1098,10 @@ const MCPStoreTab = ({
                       servers.every((s) => !isServerInstalled(s)) ||
                       installingServer !== null
                     }
+                    title="Uninstall All"
                   >
-                    <Trash2 className="w-3 h-3 mr-1" />
-                    Uninstall All
+                    <Trash2 className="w-3 h-3 shrink-0" />
+                    <span className="group-header-label">Uninstall All</span>
                   </Button>
                   {configBasedSource &&
                     sourceName === configBasedSource.name && (
@@ -1123,8 +1129,8 @@ const MCPStoreTab = ({
                           }
                         }}
                       >
-                        <FolderOpen className="w-3 h-3 mr-1" />
-                        Open File
+                        <FolderOpen className="w-3 h-3 shrink-0" />
+                        <span className="group-header-label">Open File</span>
                       </Button>
                     )}
                   {sourceUrl && (

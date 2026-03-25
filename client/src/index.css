@@ -112,3 +112,14 @@ h1 {
     @apply bg-background text-foreground;
   }
 }
+
+/* Group header buttons: hide text labels when container is narrow */
+.group-header-label {
+  margin-left: 0.25rem;
+}
+
+@container (max-width: 500px) {
+  .group-header-label {
+    display: none;
+  }
+}
