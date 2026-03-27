@@ -326,11 +326,14 @@ const App = () => {
       }
       // Also refresh sidebar
       setConfigRefreshKey((k) => k + 1);
-      // Wait for state to settle, then connect
+      // Wait for React re-render with new state, then connect using ref
+      console.log(
+        "[App] State updated, waiting for React re-render before connecting...",
+      );
       setTimeout(() => {
-        console.log("[App] Reconnecting after config reload");
-        connectMcpServer();
-      }, 300);
+        console.log("[App] Reconnecting after config reload (via ref)");
+        connectMcpServerRef.current();
+      }, 500);
     } catch (e) {
       console.error("[App] Error reloading config:", e);
       connectMcpServer();
@@ -538,6 +541,9 @@ const App = () => {
     defaultLoggingLevel: logLevel,
   });
 
+  // Ref to always hold the latest connectMcpServer (avoids stale closure in setTimeout)
+  const connectMcpServerRef = useRef(connectMcpServer);
+  connectMcpServerRef.current = connectMcpServer;
   // Effect: connect once React state matches the pending test connection config
   useEffect(() => {
     const pending = pendingTestConnectRef.current;
