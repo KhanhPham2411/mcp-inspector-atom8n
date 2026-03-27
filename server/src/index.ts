@@ -272,14 +272,35 @@ const authMiddleware = (
 const createWebReadableStream = (nodeStream: any): ReadableStream => {
   return new ReadableStream({
     start(controller) {
+      let closed = false;
       nodeStream.on("data", (chunk: any) => {
-        controller.enqueue(chunk);
+        if (!closed) {
+          try {
+            controller.enqueue(chunk);
+          } catch {
+            closed = true;
+          }
+        }
       });
       nodeStream.on("end", () => {
-        controller.close();
+        if (!closed) {
+          closed = true;
+          try {
+            controller.close();
+          } catch {
+            // Controller already closed, ignore
+          }
+        }
       });
       nodeStream.on("error", (err: any) => {
-        controller.error(err);
+        if (!closed) {
+          closed = true;
+          try {
+            controller.error(err);
+          } catch {
+            // Controller already closed, ignore
+          }
+        }
       });
     },
   });
