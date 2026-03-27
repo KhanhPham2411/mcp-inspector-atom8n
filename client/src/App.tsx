@@ -1619,6 +1619,31 @@ const App = () => {
             >
               Copy Error
             </Button>
+            {configFilePath && (
+              <Button
+                variant="outline"
+                onClick={async () => {
+                  try {
+                    const baseUrl = getMCPProxyAddress(config);
+                    const { token, header } = getMCPProxyAuthToken(config);
+                    await fetch(
+                      `${baseUrl}/open-config-file?path=${encodeURIComponent(configFilePath)}`,
+                      {
+                        method: "POST",
+                        headers: {
+                          "Content-Type": "application/json",
+                          [header]: token ? `Bearer ${token}` : "",
+                        },
+                      },
+                    );
+                  } catch (err) {
+                    console.error("Failed to open config file:", err);
+                  }
+                }}
+              >
+                Open MCP Config
+              </Button>
+            )}
             <DialogClose asChild>
               <Button variant="default">Close</Button>
             </DialogClose>
