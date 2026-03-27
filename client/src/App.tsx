@@ -418,6 +418,25 @@ const App = () => {
     connectionType,
     onNotification: (notification) => {
       setNotifications((prev) => [...prev, notification as ServerNotification]);
+      // Detect fatal process crash from proxy — show error toast and disconnect
+      const params = (notification as any)?.params;
+      if (
+        params?.level === "emergency" &&
+        params?.logger === "proxy" &&
+        params?.data?.type === "process_crash"
+      ) {
+        const errorMsg = params.data.message || "MCP server process crashed";
+        toast({
+          title: "MCP Server Process Crashed",
+          description: errorMsg,
+          variant: "destructive",
+          duration: 15000,
+        });
+        // Auto-disconnect to stop EventSource reconnection loop
+        setTimeout(() => {
+          disconnectMcpServer();
+        }, 100);
+      }
     },
     onPendingRequest: (request, resolve, reject) => {
       setPendingSampleRequests((prev) => [

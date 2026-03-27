@@ -638,26 +638,120 @@ app.get(
   authMiddleware,
   async (req, res) => {
     try {
-      console.log("New STDIO connection request");
+      console.log(
+        `[STDIO] New connection request (active transports: ${webAppTransports.size}, server transports: ${serverTransports.size})`,
+      );
       const { transport: serverTransport } = await createTransport(req);
+      console.log("[STDIO] Server transport (child process) started");
 
       const proxyFullAddress = (req.query.proxyFullAddress as string) || "";
       const prefix = proxyFullAddress || "";
       const endpoint = `${prefix}/message`;
 
       const webAppTransport = new SSEServerTransport(endpoint, res);
-      webAppTransports.set(webAppTransport.sessionId, webAppTransport);
-      console.log("Created client transport");
+      const sessionId = webAppTransport.sessionId;
+      webAppTransports.set(sessionId, webAppTransport);
+      console.log(
+        `[STDIO] Created SSE client transport, sessionId=${sessionId}`,
+      );
 
-      serverTransports.set(webAppTransport.sessionId, serverTransport);
-      console.log("Created server transport");
+      serverTransports.set(sessionId, serverTransport);
+      console.log(
+        `[STDIO] Registered server transport, sessionId=${sessionId} (total active: ${webAppTransports.size})`,
+      );
 
       await webAppTransport.start();
+      console.log(
+        `[STDIO] SSE client transport started, sessionId=${sessionId}`,
+      );
+
+      // Clean up when SSE connection closes (client disconnect / EventSource reconnect)
+      res.on("close", () => {
+        console.log(
+          `[STDIO] SSE response stream closed, sessionId=${sessionId} — cleaning up stale transport`,
+        );
+        // Close the child process transport to prevent zombie processes
+        serverTransport.close().catch((err) => {
+          console.error(
+            `[STDIO] Error closing server transport for sessionId=${sessionId}:`,
+            err,
+          );
+        });
+        // Remove from maps so they don't accumulate
+        webAppTransports.delete(sessionId);
+        serverTransports.delete(sessionId);
+        sessionHeaderHolders.delete(sessionId);
+        console.log(
+          `[STDIO] Cleaned up sessionId=${sessionId} (remaining active: ${webAppTransports.size})`,
+        );
+      });
+
+      // Buffer stderr for crash reporting
+      const stderrBuffer: string[] = [];
+
+      // Monitor child process exit directly (won't be overwritten by mcpProxy)
+      const childProcess = (serverTransport as any)._process;
+      if (childProcess) {
+        childProcess.on(
+          "exit",
+          (code: number | null, signal: string | null) => {
+            console.log(
+              `[STDIO] Child process EXITED: code=${code}, signal=${signal}, sessionId=${sessionId}`,
+            );
+            if (code !== null && code !== 0) {
+              // Child process crashed — send fatal error to client before close cascade
+              const errorMessage =
+                stderrBuffer.join("\n") || `Process exited with code ${code}`;
+              console.error(
+                `[STDIO] Sending crash notification to client, sessionId=${sessionId}`,
+              );
+              // Set very long retry to prevent EventSource auto-reconnect
+              try {
+                res.write(`retry: 999999999\n\n`);
+              } catch {
+                // Response may already be ending
+              }
+              webAppTransport
+                .send({
+                  jsonrpc: "2.0",
+                  method: "notifications/message",
+                  params: {
+                    level: "emergency",
+                    logger: "proxy",
+                    data: {
+                      message: errorMessage,
+                      type: "process_crash",
+                      exitCode: code,
+                    },
+                  },
+                })
+                .catch(() => {
+                  // Client already disconnected, ignore
+                });
+            }
+          },
+        );
+        childProcess.on("error", (err: Error) => {
+          console.error(
+            `[STDIO] Child process ERROR: ${err.message}, sessionId=${sessionId}`,
+          );
+        });
+      } else {
+        console.warn(
+          "[STDIO] Could not access child process for exit monitoring",
+        );
+      }
 
       (serverTransport as StdioClientTransport).stderr!.on("data", (chunk) => {
+        const stderrText = chunk.toString().trim();
+        stderrBuffer.push(stderrText);
+        console.error(
+          `[STDIO] stderr from child process (sessionId=${sessionId}): ${stderrText}`,
+        );
         if (chunk.toString().includes("MODULE_NOT_FOUND")) {
           // Server command not found, remove transports
           const message = "Command not found, transports removed";
+          console.error(`[STDIO] ${message}, sessionId=${sessionId}`);
           webAppTransport
             .send({
               jsonrpc: "2.0",
@@ -675,10 +769,12 @@ app.get(
             });
           webAppTransport.close();
           serverTransport.close();
-          webAppTransports.delete(webAppTransport.sessionId);
-          serverTransports.delete(webAppTransport.sessionId);
-          sessionHeaderHolders.delete(webAppTransport.sessionId);
-          console.error(message);
+          webAppTransports.delete(sessionId);
+          serverTransports.delete(sessionId);
+          sessionHeaderHolders.delete(sessionId);
+          console.log(
+            `[STDIO] Cleaned up transports for sessionId=${sessionId} (remaining active: ${webAppTransports.size})`,
+          );
         } else {
           // Inspect message and attempt to assign a RFC 5424 Syslog Protocol level
           let level;
@@ -694,6 +790,8 @@ app.get(
             level = "warning";
           } else if (ucMsg.includes("ERROR")) {
             level = "error";
+          } else if (ucMsg.includes("FATAL")) {
+            level = "emergency";
           } else if (ucMsg.includes("CRITICAL")) {
             level = "critical";
           } else if (ucMsg.includes("ALERT")) {
@@ -734,15 +832,17 @@ app.get(
         transportToClient: webAppTransport,
         transportToServer: serverTransport,
       });
+      console.log(
+        `[STDIO] mcpProxy bridge established, sessionId=${sessionId}`,
+      );
     } catch (error) {
+      console.error("[STDIO] Error during connection setup:", error);
       if (error instanceof SseError && error.code === 401) {
-        console.error(
-          "Received 401 Unauthorized from MCP server. Authentication failure.",
-        );
+        console.error("[STDIO] 401 Unauthorized from MCP server");
         res.status(401).json(error);
         return;
       }
-      console.error("Error in /stdio route:", error);
+      console.error("[STDIO] Error in /stdio route:", error);
       res.status(500).json(error);
     }
   },

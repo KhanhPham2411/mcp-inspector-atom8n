@@ -373,6 +373,13 @@ export function useConnection({
   };
 
   const connect = async (_e?: unknown, retryCount: number = 0) => {
+    console.log(
+      `[useConnection] connect() called — transportType=${transportType}, retryCount=${retryCount}, connectionType=${connectionType}`,
+    );
+    console.log(
+      `[useConnection] params — command="${command}", args="${args}", sseUrl="${sseUrl}"`,
+    );
+    console.trace("[useConnection] connect() call stack");
     setConnectionStatus("connecting");
 
     const clientCapabilities = {
@@ -393,8 +400,11 @@ export function useConnection({
     // Only check proxy health for proxy connections
     if (connectionType === "proxy") {
       try {
+        console.log("[useConnection] Checking proxy health...");
         await checkProxyHealth();
+        console.log("[useConnection] Proxy health OK");
       } catch {
+        console.error("[useConnection] Proxy health check FAILED");
         setConnectionStatus("error-connecting-to-proxy");
         return;
       }
@@ -677,6 +687,9 @@ export function useConnection({
 
       let capabilities;
       try {
+        console.log(
+          `[useConnection] Creating ${transportType === "streamable-http" ? "StreamableHTTPClientTransport" : "SSEClientTransport"} to ${serverUrl}`,
+        );
         const transport =
           transportType === "streamable-http"
             ? new StreamableHTTPClientTransport(serverUrl, {
@@ -685,7 +698,9 @@ export function useConnection({
               })
             : new SSEClientTransport(serverUrl, transportOptions);
 
+        console.log("[useConnection] Calling client.connect()...");
         await client.connect(transport as Transport);
+        console.log("[useConnection] client.connect() succeeded");
 
         setClientTransport(transport);
 
@@ -771,6 +786,7 @@ export function useConnection({
 
       setMcpClient(client);
       setConnectionStatus("connected");
+      console.log("[useConnection] Connection fully established");
     } catch (e) {
       if (
         lastRequest === "logging/setLevel" &&
@@ -789,6 +805,10 @@ export function useConnection({
   };
 
   const disconnect = async () => {
+    console.log(
+      `[useConnection] disconnect() called — transportType=${transportType}`,
+    );
+    console.trace("[useConnection] disconnect() call stack");
     if (transportType === "streamable-http")
       await (
         clientTransport as StreamableHTTPClientTransport
