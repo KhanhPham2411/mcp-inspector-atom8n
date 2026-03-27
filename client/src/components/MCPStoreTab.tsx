@@ -328,7 +328,7 @@ const MCPStoreTab = ({
               );
               window.removeEventListener("message", handler);
               resolve([]);
-            }, 5000);
+            }, 1000);
 
             const handler = (event: MessageEvent) => {
               if (event.data && event.data.type === "n8nFileList") {

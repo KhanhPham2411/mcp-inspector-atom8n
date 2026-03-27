@@ -276,6 +276,67 @@ const App = () => {
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [configRefreshKey, sidebarCollapsed]);
 
+  // Reload config file from disk and reconnect with updated values
+  const reloadConfigAndReconnect = async () => {
+    const path = configFilePath || localStorage.getItem("activeConfigPath");
+    if (!path) {
+      console.warn(
+        "[App] No config path to reload, reconnecting with current values",
+      );
+      connectMcpServer();
+      return;
+    }
+    try {
+      console.log(`[App] Reloading config from: ${path}`);
+      const baseUrl = getMCPProxyAddress(config);
+      const { token, header } = getMCPProxyAuthToken(config);
+      const url = `${baseUrl}/mcp-config?path=${encodeURIComponent(path)}`;
+      const resp = await fetch(url, {
+        headers: {
+          "Content-Type": "application/json",
+          [header]: token ? `Bearer ${token}` : "",
+        },
+      });
+      if (!resp.ok) {
+        console.error(`[App] Config fetch failed: ${resp.status}`);
+        connectMcpServer();
+        return;
+      }
+      const data = await resp.json();
+      const configData = data.config as any;
+      const servers = (configData.servers || configData.mcpServers) as
+        | Record<string, any>
+        | undefined;
+      if (servers) {
+        // Find the currently-selected server by matching command
+        const serverName =
+          Object.keys(servers).find((name) => {
+            const s = servers[name];
+            return s.command === command;
+          }) || Object.keys(servers)[0];
+        const serverConfig = servers[serverName];
+        if (serverConfig?.command) {
+          console.log(
+            `[App] Applying refreshed config for "${serverName}": command=${serverConfig.command}, args=${JSON.stringify(serverConfig.args)}`,
+          );
+          setCommand(serverConfig.command);
+          setArgs(serverConfig.args ? serverConfig.args.join(" ") : "");
+          if (serverConfig.env) setEnv(serverConfig.env);
+        }
+      }
+      // Also refresh sidebar
+      setConfigRefreshKey((k) => k + 1);
+      // Wait for state to settle, then connect
+      setTimeout(() => {
+        console.log("[App] Reconnecting after config reload");
+        connectMcpServer();
+      }, 300);
+    } catch (e) {
+      console.error("[App] Error reloading config:", e);
+      connectMcpServer();
+    }
+  };
+
   const [authState, setAuthState] =
     useState<AuthDebuggerState>(EMPTY_DEBUGGER_STATE);
 
@@ -1645,7 +1706,21 @@ const App = () => {
               </Button>
             )}
             <DialogClose asChild>
-              <Button variant="default">Close</Button>
+              <Button
+                variant="default"
+                onClick={() => {
+                  setCrashError(null);
+                  console.log(
+                    "[App] Reconnect clicked — reloading config and reconnecting",
+                  );
+                  reloadConfigAndReconnect();
+                }}
+              >
+                Reconnect
+              </Button>
+            </DialogClose>
+            <DialogClose asChild>
+              <Button variant="outline">Close</Button>
             </DialogClose>
           </DialogFooter>
         </DialogContent>
