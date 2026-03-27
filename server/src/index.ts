@@ -658,17 +658,21 @@ app.get(
         if (chunk.toString().includes("MODULE_NOT_FOUND")) {
           // Server command not found, remove transports
           const message = "Command not found, transports removed";
-          webAppTransport.send({
-            jsonrpc: "2.0",
-            method: "notifications/message",
-            params: {
-              level: "emergency",
-              logger: "proxy",
-              data: {
-                message,
+          webAppTransport
+            .send({
+              jsonrpc: "2.0",
+              method: "notifications/message",
+              params: {
+                level: "emergency",
+                logger: "proxy",
+                data: {
+                  message,
+                },
               },
-            },
-          });
+            })
+            .catch(() => {
+              // Client already disconnected, ignore
+            });
           webAppTransport.close();
           serverTransport.close();
           webAppTransports.delete(webAppTransport.sessionId);
@@ -708,17 +712,21 @@ app.get(
           } else {
             level = "info";
           }
-          webAppTransport.send({
-            jsonrpc: "2.0",
-            method: "notifications/message",
-            params: {
-              level,
-              logger: "stdio",
-              data: {
-                message,
+          webAppTransport
+            .send({
+              jsonrpc: "2.0",
+              method: "notifications/message",
+              params: {
+                level,
+                logger: "stdio",
+                data: {
+                  message,
+                },
               },
-            },
-          });
+            })
+            .catch(() => {
+              // Client already disconnected, ignore
+            });
         }
       });
 
