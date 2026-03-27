@@ -934,6 +934,17 @@ app.get(
   },
 );
 
+// Expand tilde (~) to the user's home directory, cross-platform.
+// Handles ~/..., ~\... (Windows), and bare ~.
+function expandTildePath(rawPath: string): string {
+  const homeDir = os.homedir();
+  if (rawPath === "~") return homeDir;
+  if (rawPath.startsWith("~/") || rawPath.startsWith("~\\")) {
+    return path.join(homeDir, rawPath.slice(2));
+  }
+  return rawPath;
+}
+
 // Returns the default Cursor MCP configuration from the user's home directory
 // Default path: <home>/.cursor/mcp.json (cross-platform)
 app.get(
@@ -944,14 +955,8 @@ app.get(
     try {
       // Allow overriding the path via query param for flexibility/testing
       const rawOverridePath = (req.query.path as string) || "";
-      const homeDir = os.homedir();
-      // Expand ~ to the user's home directory
-      const overridePath = rawOverridePath.startsWith("~/")
-        ? path.join(homeDir, rawOverridePath.slice(2))
-        : rawOverridePath === "~"
-          ? homeDir
-          : rawOverridePath;
-      const defaultPath = path.join(homeDir, ".cursor", "mcp.json");
+      const overridePath = expandTildePath(rawOverridePath);
+      const defaultPath = path.join(os.homedir(), ".cursor", "mcp.json");
       const targetPath = overridePath || defaultPath;
 
       try {
@@ -1206,14 +1211,8 @@ app.post(
 
       // Allow overriding the path via query param for flexibility/testing
       const rawOverridePath = (req.query.path as string) || "";
-      const homeDir = os.homedir();
-      // Expand ~ to the user's home directory
-      const overridePath = rawOverridePath.startsWith("~/")
-        ? path.join(homeDir, rawOverridePath.slice(2))
-        : rawOverridePath === "~"
-          ? homeDir
-          : rawOverridePath;
-      const defaultPath = path.join(homeDir, ".cursor", "mcp.json");
+      const overridePath = expandTildePath(rawOverridePath);
+      const defaultPath = path.join(os.homedir(), ".cursor", "mcp.json");
       const targetPath = overridePath || defaultPath;
 
       console.log("[update-mcp-config] rawOverridePath:", rawOverridePath);
@@ -1709,12 +1708,7 @@ app.post(
         return;
       }
 
-      const homeDir = os.homedir();
-      const expandedPath = rawPath.startsWith("~/")
-        ? path.join(homeDir, rawPath.slice(2))
-        : rawPath === "~"
-          ? homeDir
-          : rawPath;
+      const expandedPath = expandTildePath(rawPath);
 
       const folderPath = path.dirname(expandedPath);
 
@@ -1871,7 +1865,7 @@ app.post(
         // Convert absolute path to tilde path for consistency
         const homeDir = os.homedir();
         const tildePath = filePath.startsWith(homeDir)
-          ? "~" + filePath.slice(homeDir.length)
+          ? "~/" + filePath.slice(homeDir.length + 1).replace(/\\/g, "/")
           : filePath;
 
         logger.info(`File chosen: ${filePath} (tilde: ${tildePath})`);

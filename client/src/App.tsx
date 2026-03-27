@@ -112,10 +112,7 @@ const App = () => {
   const [command, setCommand] = useState<string>(getInitialCommand);
   const [args, setArgs] = useState<string>(getInitialArgs);
   const [configFilePath, setConfigFilePath] = useState<string>(() => {
-    return (
-      localStorage.getItem("lastConfigFilePath") ||
-      `C:\\Users\\%USERPROFILE%\\.cursor\\mcp.json`
-    );
+    return localStorage.getItem("lastConfigFilePath") || `~/.cursor/mcp.json`;
   });
 
   const [sseUrl, setSseUrl] = useState<string>(getInitialSseUrl);
