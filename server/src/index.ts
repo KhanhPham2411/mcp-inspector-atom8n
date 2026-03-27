@@ -2,7 +2,7 @@
 
 import cors from "cors";
 import { parseArgs } from "node:util";
-import { parse as shellParseArgs } from "shell-quote";
+
 import nodeFetch, { Headers as NodeHeaders } from "node-fetch";
 
 // Type-compatible wrappers for node-fetch to work with browser-style types
@@ -350,6 +350,48 @@ const createCustomFetch = (headerHolder: { headers: HeadersInit }) => {
   };
 };
 
+/**
+ * Parse a command-line args string into an array, preserving backslashes
+ * for Windows path compatibility. Handles double-quoted and single-quoted
+ * strings, but does NOT interpret backslash as an escape character.
+ */
+const parseArgsWindowsSafe = (argsString: string): string[] => {
+  const args: string[] = [];
+  let current = "";
+  let inDoubleQuote = false;
+  let inSingleQuote = false;
+
+  for (let i = 0; i < argsString.length; i++) {
+    const ch = argsString[i];
+
+    if (ch === '"' && !inSingleQuote) {
+      inDoubleQuote = !inDoubleQuote;
+      continue;
+    }
+
+    if (ch === "'" && !inDoubleQuote) {
+      inSingleQuote = !inSingleQuote;
+      continue;
+    }
+
+    if ((ch === " " || ch === "\t") && !inDoubleQuote && !inSingleQuote) {
+      if (current.length > 0) {
+        args.push(current);
+        current = "";
+      }
+      continue;
+    }
+
+    current += ch;
+  }
+
+  if (current.length > 0) {
+    args.push(current);
+  }
+
+  return args;
+};
+
 const createTransport = async (
   req: express.Request,
 ): Promise<{
@@ -363,7 +405,7 @@ const createTransport = async (
 
   if (transportType === "stdio") {
     const command = (query.command as string).trim();
-    const origArgs = shellParseArgs(query.args as string) as string[];
+    const origArgs = parseArgsWindowsSafe(query.args as string);
     const queryEnv = query.env ? JSON.parse(query.env as string) : {};
     const env = { ...defaultEnvironment, ...process.env, ...queryEnv };
 
