@@ -1350,6 +1350,10 @@ const App = () => {
                 }}
               >
                 <TabsList className="mb-4 py-0">
+                  <TabsTrigger value="store">
+                    <Store className="w-4 h-4 mr-2" />
+                    MCP Store
+                  </TabsTrigger>
                   <TabsTrigger
                     value="resources"
                     disabled={!serverCapabilities?.resources}
@@ -1400,10 +1404,6 @@ const App = () => {
                   <TabsTrigger value="auth">
                     <Key className="w-4 h-4 mr-2" />
                     Auth
-                  </TabsTrigger>
-                  <TabsTrigger value="store">
-                    <Store className="w-4 h-4 mr-2" />
-                    MCP Store
                   </TabsTrigger>
                   <TabsTrigger value="logger">
                     <FileText className="w-4 h-4 mr-2" />
