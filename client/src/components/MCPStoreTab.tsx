@@ -162,6 +162,29 @@ const MCPStoreTab = ({
     }
     return null;
   }, [configFilePath]);
+
+  const currentSource = useMemo<{
+    name: string;
+    configPath: string;
+    icon: string;
+  } | null>(() => {
+    if (!configFilePath) return null;
+    if (configFilePath.includes("cursor")) {
+      return {
+        name: "Cursor",
+        configPath: configFilePath,
+        icon: "/cursor.svg",
+      };
+    }
+    if (configFilePath.includes("antigravity")) {
+      return {
+        name: "Antigravity",
+        configPath: configFilePath,
+        icon: "/antigravity.png",
+      };
+    }
+    return null;
+  }, [configFilePath]);
   const { toast } = useToast();
 
   // Load sources from localStorage on component mount
@@ -1137,7 +1160,42 @@ const MCPStoreTab = ({
         <div>
           <h1 className="text-2xl font-bold flex items-center gap-2">
             <Store className="w-6 h-6" />
-            MCP Store
+            MCP store
+            {currentSource && (
+              <span className="flex items-center gap-1 font-normal text-lg">
+                (
+                <button
+                  onClick={async () => {
+                    try {
+                      const baseUrl = getMCPProxyAddress(config);
+                      const { token, header } = getMCPProxyAuthToken(config);
+                      await fetch(
+                        `${baseUrl}/open-config-file?path=${encodeURIComponent(currentSource.configPath)}`,
+                        {
+                          method: "POST",
+                          headers: {
+                            "Content-Type": "application/json",
+                            [header]: token ? `Bearer ${token}` : "",
+                          },
+                        },
+                      );
+                    } catch (err) {
+                      console.error("Failed to open config file:", err);
+                    }
+                  }}
+                  className="flex items-center gap-1 hover:underline hover:text-primary transition-colors cursor-pointer"
+                  title="Open configuration file"
+                >
+                  <img
+                    src={currentSource.icon}
+                    alt={currentSource.name}
+                    className="w-5 h-5 object-contain"
+                  />
+                  {currentSource.name}
+                </button>
+                )
+              </span>
+            )}
           </h1>
           <p className="text-muted-foreground">
             Discover and install MCP servers from various sources
