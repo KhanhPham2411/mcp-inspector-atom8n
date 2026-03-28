@@ -1156,7 +1156,7 @@ const MCPStoreTab = ({
 
   return (
     <div className="w-full p-4">
-      <div className="flex items-center justify-between mb-6">
+      <div className="flex flex-wrap items-center justify-between gap-4 mb-6">
         <div>
           <h1 className="text-2xl font-bold flex items-center gap-2">
             <Store className="w-6 h-6" />
