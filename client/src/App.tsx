@@ -41,6 +41,8 @@ import { useToast } from "./lib/hooks/useToast";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import {
   Bell,
+  ChevronLeft,
+  ChevronRight,
   Files,
   FileText,
   FolderTree,
@@ -1217,7 +1219,7 @@ const App = () => {
           }}
           className="bg-card border-r border-border flex flex-col h-full relative"
         >
-          {/* Collapse / Expand toggle */}
+          {/* Collapse / Expand toggle (top) */}
           <button
             onClick={() => setSidebarCollapsed((prev) => !prev)}
             className="absolute top-3 right-1 z-20 p-1 rounded hover:bg-muted transition-colors text-muted-foreground hover:text-foreground"
@@ -1234,6 +1236,29 @@ const App = () => {
               <PanelLeft className="w-4 h-4" />
             ) : (
               <PanelLeftClose className="w-4 h-4" />
+            )}
+          </button>
+
+          {/* Collapse / Expand toggle (center of right border) */}
+          <button
+            onClick={() => setSidebarCollapsed((prev) => !prev)}
+            className="absolute z-20 p-0.5 rounded-full border border-border bg-card hover:bg-muted transition-colors text-muted-foreground hover:text-foreground shadow-sm"
+            title={sidebarCollapsed ? "Expand sidebar" : "Collapse sidebar"}
+            style={{
+              top: "50%",
+              right: -12,
+              transform: "translateY(-50%)",
+              width: 24,
+              height: 24,
+              display: "flex",
+              alignItems: "center",
+              justifyContent: "center",
+            }}
+          >
+            {sidebarCollapsed ? (
+              <ChevronRight className="w-3.5 h-3.5" />
+            ) : (
+              <ChevronLeft className="w-3.5 h-3.5" />
             )}
           </button>
 
