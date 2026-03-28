@@ -822,13 +822,63 @@ const MCPStoreTab = ({
   // Batch install all servers from a group in one API call
   const handleInstallAll = async (servers: MCPServer[]) => {
     const uninstalled = servers.filter((s) => !isServerInstalled(s));
+    console.log(
+      "[MCPStore:batch] handleInstallAll called, uninstalled count:",
+      uninstalled.length,
+      "server names:",
+      uninstalled.map((s) => s.name),
+    );
     if (uninstalled.length === 0) return;
 
     setInstallingServer("batch-install");
     try {
       let updatedServers = { ...currentServers };
 
-      for (const server of uninstalled) {
+      // Partition into n8n workflows vs standard servers
+      const n8nServers = uninstalled.filter((s) => isN8nWorkflow(s));
+      const standardServers = uninstalled.filter((s) => !isN8nWorkflow(s));
+      console.log(
+        "[MCPStore:batch] Partitioned — n8n:",
+        n8nServers.length,
+        "standard:",
+        standardServers.length,
+      );
+
+      // Handle n8n workflows: merge file paths into the shared n8n-workflow-mcp entry
+      if (n8nServers.length > 0) {
+        const existingEntry = updatedServers[N8N_MCP_KEY];
+        let mergedArgs = existingEntry
+          ? Array.isArray(existingEntry.args)
+            ? [...existingEntry.args]
+            : []
+          : [...N8N_MCP_ARGS_PREFIX];
+
+        for (const server of n8nServers) {
+          const filePath = server.args?.[server.args.length - 1];
+          console.log(
+            "[MCPStore:n8n:batch] Installing n8n workflow, filePath:",
+            filePath,
+          );
+          if (filePath && !mergedArgs.includes(filePath)) {
+            mergedArgs.push(filePath);
+          }
+        }
+
+        updatedServers[N8N_MCP_KEY] = {
+          command: "npm",
+          args: mergedArgs,
+          env: existingEntry?.env || {},
+          disabled: existingEntry?.disabled || false,
+          autoApprove: existingEntry?.autoApprove || [],
+        };
+        console.log(
+          "[MCPStore:n8n:batch] Updated n8n-workflow-mcp args:",
+          mergedArgs,
+        );
+      }
+
+      // Handle standard servers
+      for (const server of standardServers) {
         const serverConfig = {
           command: server.command,
           args: server.args,
@@ -843,6 +893,11 @@ const MCPStoreTab = ({
           ? `${serverName}-${Date.now()}`
           : serverName;
         updatedServers[finalName] = serverConfig;
+        console.log(
+          "[MCPStore:batch] Added standard server:",
+          finalName,
+          serverConfig,
+        );
       }
 
       const baseUrl = getMCPProxyAddress(config);
@@ -851,6 +906,7 @@ const MCPStoreTab = ({
       if (configFilePath) {
         updateUrl += `?path=${encodeURIComponent(configFilePath)}`;
       }
+      console.log("[MCPStore:batch] POST URL:", updateUrl);
 
       const response = await fetch(updateUrl, {
         method: "POST",
@@ -861,8 +917,15 @@ const MCPStoreTab = ({
         body: JSON.stringify({ servers: updatedServers }),
       });
 
+      console.log(
+        "[MCPStore:batch] Install response status:",
+        response.status,
+        response.statusText,
+      );
+
       if (!response.ok) {
         const errorData = await response.json().catch(() => ({}));
+        console.error("[MCPStore:batch] Install error response:", errorData);
         throw new Error(
           errorData.message ||
             `HTTP ${response.status}: ${response.statusText}`,
@@ -876,6 +939,7 @@ const MCPStoreTab = ({
       });
       if (onConfigFileUpdated) onConfigFileUpdated();
     } catch (error) {
+      console.error("[MCPStore:batch] Install all error:", error);
       toast({
         title: "Error",
         description: `Failed to install servers: ${error instanceof Error ? error.message : String(error)}`,
@@ -889,13 +953,72 @@ const MCPStoreTab = ({
   // Batch uninstall all servers from a group in one API call
   const handleUninstallAll = async (servers: MCPServer[]) => {
     const installed = servers.filter((s) => isServerInstalled(s));
+    console.log(
+      "[MCPStore:batch] handleUninstallAll called, installed count:",
+      installed.length,
+      "server names:",
+      installed.map((s) => s.name),
+    );
     if (installed.length === 0) return;
 
     setInstallingServer("batch-uninstall");
     try {
       let updatedServers = { ...currentServers };
 
-      for (const server of installed) {
+      // Partition into n8n workflows vs standard servers
+      const n8nServers = installed.filter((s) => isN8nWorkflow(s));
+      const standardServers = installed.filter((s) => !isN8nWorkflow(s));
+      console.log(
+        "[MCPStore:batch] Uninstall partitioned — n8n:",
+        n8nServers.length,
+        "standard:",
+        standardServers.length,
+      );
+
+      // Handle n8n workflows: remove file paths from the shared n8n-workflow-mcp entry
+      if (n8nServers.length > 0) {
+        const existingEntry = updatedServers[N8N_MCP_KEY];
+        if (existingEntry) {
+          const existingArgs = Array.isArray(existingEntry.args)
+            ? [...existingEntry.args]
+            : [];
+          const filePathsToRemove = n8nServers
+            .map((s) => s.args?.[s.args.length - 1])
+            .filter(Boolean);
+          console.log(
+            "[MCPStore:n8n:batch] File paths to remove:",
+            filePathsToRemove,
+          );
+
+          const newArgs = existingArgs.filter(
+            (arg) => !filePathsToRemove.includes(arg),
+          );
+
+          // If only the prefix args remain (no file paths), remove the entry
+          if (newArgs.length <= N8N_MCP_ARGS_PREFIX.length) {
+            console.log(
+              "[MCPStore:n8n:batch] No n8n files left, removing n8n-workflow-mcp entry",
+            );
+            delete updatedServers[N8N_MCP_KEY];
+          } else {
+            updatedServers[N8N_MCP_KEY] = {
+              ...existingEntry,
+              args: newArgs,
+            };
+            console.log(
+              "[MCPStore:n8n:batch] Updated n8n-workflow-mcp args after removal:",
+              newArgs,
+            );
+          }
+        } else {
+          console.warn(
+            "[MCPStore:n8n:batch] n8n-workflow-mcp entry not found for uninstall",
+          );
+        }
+      }
+
+      // Handle standard servers
+      for (const server of standardServers) {
         const matchedName = Object.keys(updatedServers).find((name) => {
           const existing = updatedServers[name];
           if (existing.command === server.command) {
@@ -909,6 +1032,7 @@ const MCPStoreTab = ({
         });
         if (matchedName) {
           delete updatedServers[matchedName];
+          console.log("[MCPStore:batch] Removed standard server:", matchedName);
         }
       }
 
@@ -918,6 +1042,7 @@ const MCPStoreTab = ({
       if (configFilePath) {
         updateUrl += `?path=${encodeURIComponent(configFilePath)}`;
       }
+      console.log("[MCPStore:batch] Uninstall POST URL:", updateUrl);
 
       const response = await fetch(updateUrl, {
         method: "POST",
@@ -928,8 +1053,15 @@ const MCPStoreTab = ({
         body: JSON.stringify({ servers: updatedServers }),
       });
 
+      console.log(
+        "[MCPStore:batch] Uninstall response status:",
+        response.status,
+        response.statusText,
+      );
+
       if (!response.ok) {
         const errorData = await response.json().catch(() => ({}));
+        console.error("[MCPStore:batch] Uninstall error response:", errorData);
         throw new Error(
           errorData.message ||
             `HTTP ${response.status}: ${response.statusText}`,
@@ -943,6 +1075,7 @@ const MCPStoreTab = ({
       });
       if (onConfigFileUpdated) onConfigFileUpdated();
     } catch (error) {
+      console.error("[MCPStore:batch] Uninstall all error:", error);
       toast({
         title: "Error",
         description: `Failed to uninstall servers: ${error instanceof Error ? error.message : String(error)}`,
