@@ -483,6 +483,50 @@ const App = () => {
     setForkErrorMessage(null);
 
     try {
+      // Attempt 1: Try VSCode postMessage to invoke mcp-inspector.switchToFork command
+      console.log("[App:fork] Attempting to switch via VSCode postMessage...");
+      const vscodeSwitched = await new Promise<boolean>((resolve) => {
+        const timeout = setTimeout(() => {
+          console.log(
+            "[App:fork] VSCode postMessage timed out after 2s, will try SSE fallback",
+          );
+          window.removeEventListener("message", handler);
+          resolve(false);
+        }, 2000);
+
+        const handler = (event: MessageEvent) => {
+          if (event.data && event.data.type === "switchToForkResponse") {
+            console.log(
+              "[App:fork] Received switchToForkResponse from VSCode:",
+              {
+                success: event.data.success,
+                error: event.data.error,
+              },
+            );
+            clearTimeout(timeout);
+            window.removeEventListener("message", handler);
+            resolve(!!event.data.success);
+          }
+        };
+
+        window.addEventListener("message", handler);
+        // Send request to parent (VSCode webview bridge)
+        console.log("[App:fork] Sending switchToFork postMessage to parent");
+        window.parent.postMessage({ type: "switchToFork" }, "*");
+      });
+
+      if (vscodeSwitched) {
+        console.log("[App:fork] Fork switch completed successfully via VSCode");
+        toast({
+          title: "Switched to Fork",
+          description: "Fork mode activated via VSCode extension.",
+        });
+        return;
+      }
+
+      // Attempt 2: Fall back to SSE-based approach
+      console.log("[App:fork] Falling back to SSE-based fork switch...");
+
       // Disconnect current server first
       if (
         connectionStatus === "connected" ||
