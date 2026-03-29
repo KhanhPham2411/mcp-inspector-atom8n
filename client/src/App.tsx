@@ -46,6 +46,7 @@ import {
   Files,
   FileText,
   FolderTree,
+  GitFork,
   Hammer,
   Hash,
   Key,
@@ -98,6 +99,11 @@ import {
   CustomHeaders,
   migrateFromLegacyAuth,
 } from "./lib/types/customHeaders";
+
+const N8N_MCP_KEY = "n8n-workflow-mcp";
+
+// [FORK] n8n fork mode constants
+const N8N_FORK_SERVER_URL = "localhost:5888";
 
 const CONFIG_LOCAL_STORAGE_KEY = "inspectorConfig_v1";
 
@@ -229,6 +235,9 @@ const App = () => {
   }, [sidebarCollapsed]);
   const [configRefreshKey, setConfigRefreshKey] = useState(0);
   const [crashError, setCrashError] = useState<string | null>(null);
+  // [FORK] State for showing the "switch to fork" dialog when n8n tool call fails
+  const [showForkDialog, setShowForkDialog] = useState(false);
+  const [forkErrorMessage, setForkErrorMessage] = useState<string | null>(null);
 
   // When sidebar is collapsed, load config directly since Sidebar is unmounted
   useEffect(() => {
@@ -440,6 +449,76 @@ const App = () => {
   const currentServerConfig = currentServerName
     ? currentServers[currentServerName]
     : undefined;
+
+  // [FORK] Detect if the currently connected server is an n8n-workflow-mcp server
+  const isCurrentServerN8nWorkflow = (): boolean => {
+    // Check by server name
+    if (currentServerName === N8N_MCP_KEY) {
+      console.log("[App:fork] Current server is n8n-workflow-mcp (by name)");
+      return true;
+    }
+    // Check by command args pattern: "npm exec n8n-atom-cli mcp ..."
+    if (transportType === "stdio") {
+      const currentArgs = args.trim() ? args.trim().split(/\s+/) : [];
+      if (
+        command === "npm" &&
+        currentArgs.length >= 3 &&
+        currentArgs[0] === "exec" &&
+        currentArgs[1] === "n8n-atom-cli" &&
+        currentArgs[2] === "mcp"
+      ) {
+        console.log(
+          "[App:fork] Current server is n8n-workflow-mcp (by args pattern)",
+        );
+        return true;
+      }
+    }
+    return false;
+  };
+
+  // [FORK] Handle switching to fork mode for n8n workflows
+  const handleSwitchToFork = async () => {
+    console.log("[App:fork] Switching to fork mode...");
+    setShowForkDialog(false);
+    setForkErrorMessage(null);
+
+    try {
+      // Disconnect current server first
+      if (
+        connectionStatus === "connected" ||
+        connectionStatus === "connecting"
+      ) {
+        console.log("[App:fork] Disconnecting current server...");
+        await disconnectMcpServer();
+      }
+
+      // Switch transport to SSE with fork URL
+      const forkUrl = `http://${N8N_FORK_SERVER_URL}`;
+      console.log(`[App:fork] Setting SSE URL to: ${forkUrl}`);
+      setTransportType("sse");
+      setSseUrl(forkUrl);
+
+      toast({
+        title: "Switching to Fork",
+        description: `Connecting to n8n fork server at ${N8N_FORK_SERVER_URL}...`,
+      });
+
+      // Use pending test connect mechanism to connect after state update
+      pendingTestConnectRef.current = {
+        sseUrl: forkUrl,
+        transportType: "sse",
+      };
+
+      console.log("[App:fork] Fork switch initiated successfully");
+    } catch (error) {
+      console.error("[App:fork] Error switching to fork:", error);
+      toast({
+        title: "Fork Switch Failed",
+        description: `Failed to switch to fork: ${error instanceof Error ? error.message : String(error)}`,
+        variant: "destructive",
+      });
+    }
+  };
   const manualServerConfig =
     transportType === "stdio"
       ? {
@@ -1095,6 +1174,7 @@ const App = () => {
 
   const callTool = async (name: string, params: Record<string, unknown>) => {
     lastToolCallOriginTabRef.current = currentTabRef.current;
+    console.log(`[App:callTool] Calling tool: ${name}`);
 
     try {
       // Find the tool schema to clean parameters properly
@@ -1118,15 +1198,52 @@ const App = () => {
         "tools",
       );
 
+      // [FORK] Check if the successful response still contains an error (some MCP servers return error in content)
+      const contentArray = Array.isArray(response?.content)
+        ? (response.content as Array<{ type: string; text?: string }>)
+        : [];
+      const responseText = contentArray
+        .filter((c) => c.type === "text")
+        .map((c) => c.text || "")
+        .join("");
+      if (
+        response?.isError &&
+        responseText &&
+        responseText.toLowerCase().includes("fetch failed") &&
+        isCurrentServerN8nWorkflow()
+      ) {
+        console.log(
+          "[App:fork] Detected 'fetch failed' error in tool response for n8n workflow server",
+        );
+        setForkErrorMessage(responseText);
+        setShowForkDialog(true);
+      }
+
       setToolResult(response);
+      console.log(`[App:callTool] Tool ${name} completed successfully`);
       // Clear any validation errors since tool execution completed
       setErrors((prev) => ({ ...prev, tools: null }));
     } catch (e) {
+      const errorMessage = (e as Error).message ?? String(e);
+      console.error(`[App:callTool] Tool ${name} failed:`, errorMessage);
+
+      // [FORK] Detect "fetch failed" error from n8n workflow MCP server
+      if (
+        errorMessage.toLowerCase().includes("fetch failed") &&
+        isCurrentServerN8nWorkflow()
+      ) {
+        console.log(
+          "[App:fork] Detected 'fetch failed' error for n8n workflow server, showing fork dialog",
+        );
+        setForkErrorMessage(errorMessage);
+        setShowForkDialog(true);
+      }
+
       const toolResult: CompatibilityCallToolResult = {
         content: [
           {
             type: "text",
-            text: (e as Error).message ?? String(e),
+            text: errorMessage,
           },
         ],
         isError: true,
@@ -1753,6 +1870,51 @@ const App = () => {
             <DialogClose asChild>
               <Button variant="outline">Close</Button>
             </DialogClose>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
+      {/* [FORK] Switch to Fork dialog for n8n workflow servers */}
+      <Dialog
+        open={showForkDialog}
+        onOpenChange={(open) => {
+          if (!open) {
+            console.log("[App:fork] Fork dialog dismissed");
+            setShowForkDialog(false);
+            setForkErrorMessage(null);
+          }
+        }}
+      >
+        <DialogContent className="max-w-lg">
+          <DialogHeader>
+            <DialogTitle className="flex items-center gap-2">
+              <GitFork className="w-5 h-5 text-orange-500" />
+              Switch to Fork Server?
+            </DialogTitle>
+            <DialogDescription>
+              The n8n workflow tool call failed with a network error. This
+              usually means the n8n server is not reachable. You can switch to
+              the local fork server to resolve this.
+            </DialogDescription>
+          </DialogHeader>
+          {forkErrorMessage && (
+            <pre className="mt-2 max-h-32 overflow-auto rounded-md bg-muted p-3 text-sm font-mono whitespace-pre-wrap break-words select-text cursor-text">
+              {forkErrorMessage}
+            </pre>
+          )}
+          <DialogFooter className="gap-2 sm:gap-0">
+            <DialogClose asChild>
+              <Button variant="outline">Cancel</Button>
+            </DialogClose>
+            <Button
+              variant="default"
+              onClick={() => {
+                console.log("[App:fork] User clicked Switch to Fork button");
+                handleSwitchToFork();
+              }}
+            >
+              <GitFork className="w-4 h-4 mr-2" />
+              Switch to Fork
+            </Button>
           </DialogFooter>
         </DialogContent>
       </Dialog>
