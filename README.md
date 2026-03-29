@@ -1,3 +1,6 @@
+
+<img alt="image" src="https://github.com/user-attachments/assets/f757149f-6e67-4543-aae4-35801f7bff69" />
+
 # MCP Inspector
 
 The MCP inspector is a developer tool for testing and debugging MCP servers.
