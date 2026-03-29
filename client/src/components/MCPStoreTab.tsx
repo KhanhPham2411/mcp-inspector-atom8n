@@ -464,6 +464,138 @@ const MCPStoreTab = ({
     server.source === "Workspace" ||
     !!server.description?.startsWith("n8n workflow:");
 
+  /** Extract the n8n file path from a server's args (last element after the prefix). */
+  const getN8nFilePath = (server: MCPServer): string | undefined => {
+    if (!isN8nWorkflow(server)) return undefined;
+    const args = server.args || [];
+    return args.length > 0 ? args[args.length - 1] : undefined;
+  };
+
+  /**
+   * Handle clicking on an n8n workflow title.
+   * First tries to open the file via VSCode postMessage (openN8nFile).
+   * If VSCode is not available (no response within 2s), falls back to
+   * calling the server's /open-config-file endpoint.
+   */
+  const handleOpenN8nFile = useCallback(
+    async (server: MCPServer) => {
+      const filePath = getN8nFilePath(server);
+      console.log("[MCPStore:n8n:openFile] handleOpenN8nFile called", {
+        serverName: server.name,
+        filePath,
+        source: server.source,
+      });
+
+      if (!filePath) {
+        console.warn(
+          "[MCPStore:n8n:openFile] No file path found for server:",
+          server.name,
+        );
+        toast({
+          title: "Cannot open file",
+          description: `No file path available for ${server.name}`,
+          variant: "destructive",
+        });
+        return;
+      }
+
+      // Attempt 1: Try VSCode postMessage
+      console.log(
+        "[MCPStore:n8n:openFile] Attempting to open via VSCode postMessage, filePath:",
+        filePath,
+      );
+      const vscodeOpened = await new Promise<boolean>((resolve) => {
+        const timeout = setTimeout(() => {
+          console.log(
+            "[MCPStore:n8n:openFile] VSCode postMessage timed out after 2s, will try server fallback",
+          );
+          window.removeEventListener("message", handler);
+          resolve(false);
+        }, 2000);
+
+        const handler = (event: MessageEvent) => {
+          if (event.data && event.data.type === "openN8nFileResponse") {
+            console.log(
+              "[MCPStore:n8n:openFile] Received openN8nFileResponse from VSCode:",
+              {
+                success: event.data.success,
+                error: event.data.error,
+                filePath: event.data.filePath,
+              },
+            );
+            clearTimeout(timeout);
+            window.removeEventListener("message", handler);
+            resolve(!!event.data.success);
+          }
+        };
+
+        window.addEventListener("message", handler);
+        // Send request to parent (VSCode webview bridge)
+        console.log(
+          "[MCPStore:n8n:openFile] Sending openN8nFile postMessage to parent",
+        );
+        window.parent.postMessage({ type: "openN8nFile", filePath }, "*");
+      });
+
+      if (vscodeOpened) {
+        console.log(
+          "[MCPStore:n8n:openFile] File opened successfully via VSCode",
+        );
+        return;
+      }
+
+      // Attempt 2: Fall back to server /open-config-file endpoint
+      console.log(
+        "[MCPStore:n8n:openFile] Falling back to server /open-config-file endpoint, filePath:",
+        filePath,
+      );
+      try {
+        const baseUrl = getMCPProxyAddress(config);
+        const { token, header } = getMCPProxyAuthToken(config);
+        const url = `${baseUrl}/open-config-file?path=${encodeURIComponent(filePath)}`;
+        console.log("[MCPStore:n8n:openFile] Server fallback POST URL:", url);
+
+        const response = await fetch(url, {
+          method: "POST",
+          headers: {
+            "Content-Type": "application/json",
+            [header]: token ? `Bearer ${token}` : "",
+          },
+        });
+
+        console.log(
+          "[MCPStore:n8n:openFile] Server fallback response:",
+          response.status,
+          response.statusText,
+        );
+
+        if (!response.ok) {
+          const errData = await response.json().catch(() => ({}));
+          console.error(
+            "[MCPStore:n8n:openFile] Server fallback error:",
+            errData,
+          );
+          throw new Error(errData.message || `HTTP ${response.status}`);
+        }
+
+        console.log(
+          "[MCPStore:n8n:openFile] File opened successfully via server fallback",
+        );
+      } catch (error) {
+        console.error(
+          "[MCPStore:n8n:openFile] Failed to open file via server fallback:",
+          error,
+        );
+        toast({
+          title: "Failed to open file",
+          description: `Could not open ${server.name}: ${error instanceof Error ? error.message : String(error)}`,
+          variant: "destructive",
+        });
+      }
+    },
+    [config, toast],
+  );
+
   // Check if a server is already installed
   const isServerInstalled = (server: MCPServer): boolean => {
     // n8n workflows: check if the file path is in the n8n-workflow-mcp args
@@ -1354,9 +1486,25 @@ const MCPStoreTab = ({
                           ) : (
                             <Package className="w-5 h-5 text-primary" />
                           )}
-                          <CardTitle className="text-lg">
-                            {server.name}
-                          </CardTitle>
+                          {isN8nWorkflow(server) ? (
+                            <CardTitle
+                              className="text-lg cursor-pointer hover:text-primary hover:underline transition-colors"
+                              onClick={() => {
+                                console.log(
+                                  "[MCPStore:n8n:openFile] Title clicked for n8n item:",
+                                  server.name,
+                                );
+                                handleOpenN8nFile(server);
+                              }}
+                              title={`Open ${server.name} in editor`}
+                            >
+                              {server.name}
+                            </CardTitle>
+                          ) : (
+                            <CardTitle className="text-lg">
+                              {server.name}
+                            </CardTitle>
+                          )}
                         </div>
                         {server.description && (
                           <CardDescription className="text-sm">
