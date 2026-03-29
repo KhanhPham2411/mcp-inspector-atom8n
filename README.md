@@ -1,4 +1,7 @@
-
+First MCP Inspector client support n8n:
+- Website: <a href="https://atom8n.com/" target="_blank">www.atom8n.com</a>
+- Download the client extension: <a href="https://open-vsx.org/extension/atom8n/mcp-inspector-atom" target="_blank">n8n Atom 3.0</a>
+- Join Our Community: <a href="https://discord.gg/9MmAhtJFWW" target="_blank">Discord</a>, <a href="https://web.facebook.com/groups/atom8n" target="_blank">Facebook</a>
 <img alt="image" src="https://github.com/user-attachments/assets/f757149f-6e67-4543-aae4-35801f7bff69" />
 
 # MCP Inspector
