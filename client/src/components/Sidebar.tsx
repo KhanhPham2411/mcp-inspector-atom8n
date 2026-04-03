@@ -152,13 +152,6 @@ const Sidebar = ({
           console.log("Setting environment variables:", serverConfig.env);
           setEnv(serverConfig.env);
         }
-      } else if (serverConfig.type === "sse" || serverConfig.url) {
-        console.log(
-          "Detected SSE server with URL:",
-          serverConfig.url || serverConfig.sseUrl,
-        );
-        setTransportType("sse");
-        setSseUrl(serverConfig.url || serverConfig.sseUrl || "");
       } else if (serverConfig.type === "streamable-http") {
         console.log(
           "Detected Streamable HTTP server with URL:",
@@ -166,6 +159,13 @@ const Sidebar = ({
         );
         setTransportType("streamable-http");
         setSseUrl(serverConfig.url || "");
+      } else if (serverConfig.type === "sse" || serverConfig.url) {
+        console.log(
+          "Detected SSE server with URL:",
+          serverConfig.url || serverConfig.sseUrl,
+        );
+        setTransportType("sse");
+        setSseUrl(serverConfig.url || serverConfig.sseUrl || "");
       } else {
         console.warn("Unknown server configuration type:", serverConfig);
         console.warn("Server config does not match expected patterns");

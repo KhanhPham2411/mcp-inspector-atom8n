@@ -382,13 +382,19 @@ const App = () => {
         args: newArgs,
         transportType: "stdio",
       };
-    } else if (serverConfig.type === "sse" || serverConfig.url) {
+    } else if (
+      serverConfig.type === "streamable-http" ||
+      serverConfig.type === "sse" ||
+      serverConfig.url
+    ) {
       const newUrl = serverConfig.url || serverConfig.sseUrl || "";
-      setTransportType("sse");
+      const newTransport =
+        serverConfig.type === "streamable-http" ? "streamable-http" : "sse";
+      setTransportType(newTransport);
       setSseUrl(newUrl);
       pendingTestConnectRef.current = {
         sseUrl: newUrl,
-        transportType: "sse",
+        transportType: newTransport,
       };
     }
 
@@ -579,6 +585,12 @@ const App = () => {
   // connection state. currentServerConfig comes from the config file and may not
   // match the currently-connected server (e.g. fallback to first server in config).
   const serverConfigForCurl = manualServerConfig;
+  console.log(
+    "[App] serverConfigForCurl derived from transportType:",
+    transportType,
+    "config:",
+    JSON.stringify(serverConfigForCurl),
+  );
 
   useEffect(() => {
     currentTabRef.current = activeTab;
