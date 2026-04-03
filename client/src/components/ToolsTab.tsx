@@ -115,6 +115,31 @@ const ToolsTab = ({
     formRefs.current = {};
   }, [selectedTool]);
 
+  /**
+   * For n8n workflow servers, find the single .n8n file that best matches the
+   * selected tool name.  We normalise both the tool name and the basename of
+   * each file (strip extension → lowercase → collapse hyphens/underscores)
+   * and check whether one contains the other.
+   */
+  const findMatchingN8nFile = (
+    files: string[],
+    toolName: string,
+  ): string | undefined => {
+    const normalise = (s: string) =>
+      s.toLowerCase().replace(/[-_]/g, "").trim();
+    const normTool = normalise(toolName);
+
+    for (const filePath of files) {
+      const baseName = filePath.split("/").pop() || "";
+      const nameWithoutExt = baseName.replace(/\.n8n$/i, "");
+      const normFile = normalise(nameWithoutExt);
+      if (normTool.includes(normFile) || normFile.includes(normTool)) {
+        return filePath;
+      }
+    }
+    return undefined;
+  };
+
   const generateCurlCommand = () => {
     if (!selectedTool) return "";
 
@@ -132,6 +157,29 @@ const ToolsTab = ({
       "[ToolsTab] generateCurlCommand server (env stripped):",
       JSON.stringify(server),
     );
+
+    // For n8n workflow servers, only include the single relevant .n8n file
+    // instead of all files.  The args pattern is:
+    //   ["exec", "n8n-atom-cli", "mcp", "<file1>.n8n", "<file2>.n8n", ...]
+    const N8N_PREFIX = ["exec", "n8n-atom-cli", "mcp"];
+    const serverArgs = server.args as string[] | undefined;
+    if (
+      Array.isArray(serverArgs) &&
+      serverArgs.length > N8N_PREFIX.length &&
+      serverArgs
+        .slice(0, N8N_PREFIX.length)
+        .every((a, i) => a === N8N_PREFIX[i])
+    ) {
+      const filePaths = serverArgs.slice(N8N_PREFIX.length);
+      const matchedFile = findMatchingN8nFile(filePaths, selectedTool.name);
+      if (matchedFile) {
+        server.args = [...N8N_PREFIX, matchedFile];
+        console.log(
+          "[ToolsTab] generateCurlCommand: n8n workflow detected, using single file:",
+          matchedFile,
+        );
+      }
+    }
 
     const curlCommand = `curl -X POST ${proxyUrl}/execute-tool \\
   -H "Origin: http://localhost:6274" \\
