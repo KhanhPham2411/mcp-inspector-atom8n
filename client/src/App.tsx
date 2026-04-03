@@ -1504,7 +1504,7 @@ const App = () => {
                 setOauthClientSecret={setOauthClientSecret}
                 oauthScope={oauthScope}
                 setOauthScope={setOauthScope}
-                onConnect={connectMcpServer}
+                onConnect={reloadConfigAndReconnect}
                 onDisconnect={disconnectMcpServer}
                 logLevel={logLevel}
                 sendLogLevelRequest={sendLogLevelRequest}
