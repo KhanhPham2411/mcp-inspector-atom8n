@@ -78,6 +78,7 @@ const ToolsTab = ({
 }) => {
   const [params, setParams] = useState<Record<string, unknown>>({});
   const [isToolRunning, setIsToolRunning] = useState(false);
+  const [elapsedTime, setElapsedTime] = useState<number | null>(null);
   const [isOutputSchemaExpanded, setIsOutputSchemaExpanded] = useState(false);
   const [isMetaExpanded, setIsMetaExpanded] = useState(false);
   const [hasValidationErrors, setHasValidationErrors] = useState(false);
@@ -567,7 +568,12 @@ const ToolsTab = ({
 
                       try {
                         setIsToolRunning(true);
+                        setElapsedTime(null);
+                        const startTime = performance.now();
                         await callTool(selectedTool.name, params);
+                        setElapsedTime(performance.now() - startTime);
+                      } catch {
+                        setElapsedTime(null);
                       } finally {
                         setIsToolRunning(false);
                       }
@@ -638,6 +644,7 @@ const ToolsTab = ({
                   selectedTool={selectedTool}
                   resourceContent={resourceContent}
                   onReadResource={onReadResource}
+                  elapsedTime={elapsedTime}
                 />
               </div>
             ) : (

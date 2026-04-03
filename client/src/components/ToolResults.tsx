@@ -12,7 +12,16 @@ interface ToolResultsProps {
   selectedTool: Tool | null;
   resourceContent: Record<string, string>;
   onReadResource?: (uri: string) => void;
+  elapsedTime?: number | null;
 }
+
+const formatElapsedTime = (ms: number): string => {
+  if (ms < 1000) return `${Math.round(ms)}ms`;
+  if (ms < 60000) return `${(ms / 1000).toFixed(2)}s`;
+  const minutes = Math.floor(ms / 60000);
+  const seconds = ((ms % 60000) / 1000).toFixed(1);
+  return `${minutes}m ${seconds}s`;
+};
 
 const checkContentCompatibility = (
   structuredContent: unknown,
@@ -69,6 +78,7 @@ const ToolResults = ({
   selectedTool,
   resourceContent,
   onReadResource,
+  elapsedTime,
 }: ToolResultsProps) => {
   if (!toolResult) return null;
 
@@ -123,14 +133,21 @@ const ToolResults = ({
 
     return (
       <>
-        <h4 className="font-semibold mb-2">
-          Tool Result:{" "}
-          {isError ? (
-            <span className="text-red-600 font-semibold">Error</span>
-          ) : (
-            <span className="text-green-600 font-semibold">Success</span>
+        <div className="flex items-center justify-between mb-2">
+          <h4 className="font-semibold">
+            Tool Result:{" "}
+            {isError ? (
+              <span className="text-red-600 font-semibold">Error</span>
+            ) : (
+              <span className="text-green-600 font-semibold">Success</span>
+            )}
+          </h4>
+          {elapsedTime != null && (
+            <span className="text-sm text-gray-500 dark:text-gray-400 font-mono">
+              ⏱ {formatElapsedTime(elapsedTime)}
+            </span>
           )}
-        </h4>
+        </div>
         {structuredResult.structuredContent && (
           <div className="mb-4">
             <h5 className="font-semibold mb-2 text-sm">Structured Content:</h5>
