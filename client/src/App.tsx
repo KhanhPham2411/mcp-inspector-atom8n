@@ -1740,6 +1740,7 @@ const App = () => {
                           readResource(uri);
                         }}
                         currentServerConfig={serverConfigForCurl}
+                        config={config}
                       />
                       <ConsoleTab />
                       <PingTab

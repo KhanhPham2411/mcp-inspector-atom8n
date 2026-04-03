@@ -36,6 +36,8 @@ import {
   PlayCircle,
 } from "lucide-react";
 import { useEffect, useState, useRef, useCallback } from "react";
+import { InspectorConfig } from "@/lib/configurationTypes";
+import { getMCPProxyAddress, getMCPProxyAuthToken } from "@/utils/configUtils";
 import ListPane from "./ListPane";
 import JsonView from "./JsonView";
 import ToolResults from "./ToolResults";
@@ -63,6 +65,7 @@ const ToolsTab = ({
   resourceContent,
   onReadResource,
   currentServerConfig,
+  config,
 }: {
   tools: Tool[];
   listTools: () => void;
@@ -76,6 +79,7 @@ const ToolsTab = ({
   resourceContent: Record<string, string>;
   onReadResource?: (uri: string) => void;
   currentServerConfig?: Record<string, unknown>;
+  config?: InspectorConfig;
 }) => {
   const [params, setParams] = useState<Record<string, unknown>>({});
   const [isToolRunning, setIsToolRunning] = useState(false);
@@ -189,6 +193,64 @@ const ToolsTab = ({
     return undefined;
   };
 
+  // Detect if the current connected server is an n8n workflow server
+  const N8N_PREFIX = ["exec", "n8n-atom-cli", "mcp"];
+  const serverArgs = (
+    currentServerConfig as Record<string, unknown> | undefined
+  )?.args as string[] | undefined;
+  const isN8nServer =
+    Array.isArray(serverArgs) &&
+    serverArgs.length > N8N_PREFIX.length &&
+    serverArgs.slice(0, N8N_PREFIX.length).every((a, i) => a === N8N_PREFIX[i]);
+  const n8nFilePaths = isN8nServer ? serverArgs!.slice(N8N_PREFIX.length) : [];
+
+  /**
+   * Open the matching .n8n file for a given tool.
+   * First tries VSCode postMessage, falls back to server /open-config-file.
+   */
+  const handleOpenN8nFile = useCallback(
+    async (filePath: string) => {
+      // Attempt 1: Try VSCode postMessage
+      const vscodeOpened = await new Promise<boolean>((resolve) => {
+        const timeout = setTimeout(() => {
+          window.removeEventListener("message", handler);
+          resolve(false);
+        }, 2000);
+
+        const handler = (event: MessageEvent) => {
+          if (event.data && event.data.type === "openN8nFileResponse") {
+            clearTimeout(timeout);
+            window.removeEventListener("message", handler);
+            resolve(!!event.data.success);
+          }
+        };
+
+        window.addEventListener("message", handler);
+        window.parent.postMessage({ type: "openN8nFile", filePath }, "*");
+      });
+
+      if (vscodeOpened) return;
+
+      // Attempt 2: Fall back to server /open-config-file endpoint
+      if (!config) return;
+      try {
+        const baseUrl = getMCPProxyAddress(config);
+        const { token, header } = getMCPProxyAuthToken(config);
+        const url = `${baseUrl}/open-config-file?path=${encodeURIComponent(filePath)}`;
+        await fetch(url, {
+          method: "POST",
+          headers: {
+            "Content-Type": "application/json",
+            [header]: token ? `Bearer ${token}` : "",
+          },
+        });
+      } catch (error) {
+        console.error("[ToolsTab] Failed to open n8n file:", error);
+      }
+    },
+    [config],
+  );
+
   const generateCurlCommand = () => {
     if (!selectedTool) return "";
 
@@ -284,14 +346,44 @@ const ToolsTab = ({
             setSelectedTool(null);
           }}
           setSelectedItem={setSelectedTool}
-          renderItem={(tool) => (
-            <div className="flex flex-col items-start">
-              <span className="flex-1">{tool.name}</span>
-              <span className="text-sm text-gray-500 text-left line-clamp-3">
-                {tool.description}
-              </span>
-            </div>
-          )}
+          renderItem={(tool) => {
+            const matchedFile = isN8nServer
+              ? findMatchingN8nFile(n8nFilePaths, tool.name)
+              : undefined;
+            return (
+              <div className="flex items-start gap-2">
+                {isN8nServer && (
+                  <button
+                    className="mt-0.5 p-0.5 rounded hover:bg-gray-200 dark:hover:bg-gray-700 transition-colors flex-shrink-0"
+                    title={
+                      matchedFile
+                        ? `Open ${matchedFile.split("/").pop()}`
+                        : "Open n8n file"
+                    }
+                    onClick={(e) => {
+                      e.stopPropagation();
+                      if (matchedFile) {
+                        handleOpenN8nFile(matchedFile);
+                      }
+                    }}
+                    disabled={!matchedFile}
+                  >
+                    <img
+                      src="/n8n-logo.png"
+                      alt="n8n"
+                      className={`w-4 h-4 ${!matchedFile ? "opacity-30" : ""}`}
+                    />
+                  </button>
+                )}
+                <div className="flex flex-col items-start flex-1 min-w-0">
+                  <span className="flex-1">{tool.name}</span>
+                  <span className="text-sm text-gray-500 text-left line-clamp-3">
+                    {tool.description}
+                  </span>
+                </div>
+              </div>
+            );
+          }}
           title="Tools"
           buttonText={nextCursor ? "List More Tools" : "List Tools"}
           isButtonDisabled={!nextCursor && tools.length > 0}
