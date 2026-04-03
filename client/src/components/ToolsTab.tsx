@@ -34,6 +34,7 @@ import {
   CheckCheck,
   Terminal,
   PlayCircle,
+  ExternalLink,
 } from "lucide-react";
 import { useEffect, useState, useRef, useCallback } from "react";
 import { InspectorConfig } from "@/lib/configurationTypes";
@@ -352,35 +353,24 @@ const ToolsTab = ({
               : undefined;
             return (
               <div className="flex items-start gap-2">
-                {isN8nServer && (
-                  <button
-                    className="mt-0.5 p-0.5 rounded hover:bg-gray-200 dark:hover:bg-gray-700 transition-colors flex-shrink-0"
-                    title={
-                      matchedFile
-                        ? `Open ${matchedFile.split("/").pop()}`
-                        : "Open n8n file"
-                    }
-                    onClick={(e) => {
-                      e.stopPropagation();
-                      if (matchedFile) {
-                        handleOpenN8nFile(matchedFile);
-                      }
-                    }}
-                    disabled={!matchedFile}
-                  >
-                    <img
-                      src="/n8n-logo.png"
-                      alt="n8n"
-                      className={`w-4 h-4 ${!matchedFile ? "opacity-30" : ""}`}
-                    />
-                  </button>
-                )}
                 <div className="flex flex-col items-start flex-1 min-w-0">
                   <span className="flex-1">{tool.name}</span>
                   <span className="text-sm text-gray-500 text-left line-clamp-3">
                     {tool.description}
                   </span>
                 </div>
+                {isN8nServer && matchedFile && (
+                  <button
+                    className="mt-0.5 p-1 rounded hover:bg-gray-200 dark:hover:bg-gray-700 transition-colors flex-shrink-0"
+                    title={`Open ${matchedFile.split("/").pop()}`}
+                    onClick={(e) => {
+                      e.stopPropagation();
+                      handleOpenN8nFile(matchedFile);
+                    }}
+                  >
+                    <ExternalLink className="w-3.5 h-3.5 text-muted-foreground" />
+                  </button>
+                )}
               </div>
             );
           }}
