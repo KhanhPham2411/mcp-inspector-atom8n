@@ -669,6 +669,11 @@ const MCPStoreTab = ({
       );
       return installed;
     }
+    // Check by name: if the server name is a key in currentServers, it's installed
+    if (server.name in currentServers) {
+      return true;
+    }
+    // Fall back to matching by command + args (for servers from external sources)
     return Object.values(currentServers).some(
       (existingServer: ServerConfig) => {
         // Check if command and args match
