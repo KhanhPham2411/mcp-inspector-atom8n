@@ -1961,9 +1961,9 @@ app.post(
 
       if (platform === "darwin") {
         candidates.push(`open ${escapedPath}`);
-        // open -t opens with the default text editor on macOS
-        candidates.push(`open -t ${escapedPath}`);
         candidates.push(`code ${escapedPath}`);
+        // open -t opens with the default text editor on macOS (last resort)
+        candidates.push(`open -t ${escapedPath}`);
       } else if (platform === "win32") {
         candidates.push(`start "" ${escapedPath}`);
         candidates.push(`code ${escapedPath}`);
