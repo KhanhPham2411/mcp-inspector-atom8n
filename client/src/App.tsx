@@ -446,10 +446,6 @@ const App = () => {
 
   const currentTabRef = useRef<string>(activeTab);
   const lastToolCallOriginTabRef = useRef<string>(activeTab);
-  const currentServerConfig = currentServerName
-    ? currentServers[currentServerName]
-    : undefined;
-
   // [FORK] Detect if the currently connected server is an n8n-workflow-mcp server
   const isCurrentServerN8nWorkflow = (): boolean => {
     // Check by server name
@@ -579,7 +575,10 @@ const App = () => {
             type: "sse",
             url: sseUrl,
           };
-  const serverConfigForCurl = currentServerConfig || manualServerConfig;
+  // Always use manualServerConfig for cURL since it reflects the actual current
+  // connection state. currentServerConfig comes from the config file and may not
+  // match the currently-connected server (e.g. fallback to first server in config).
+  const serverConfigForCurl = manualServerConfig;
 
   useEffect(() => {
     currentTabRef.current = activeTab;
@@ -963,10 +962,9 @@ const App = () => {
           }
         }
 
-        // Fallback to first server if no exact match
-        if (!matched && servers.length > 0) {
-          matched = servers[0].name;
-        }
+        // No fallback — only set server name when we have an exact match.
+        // Falling back to the first server caused the wrong config to be used
+        // (e.g. always showing n8n in cURL output).
         setCurrentServerName(matched || null);
       } catch (e) {
         // ignore resolution errors
