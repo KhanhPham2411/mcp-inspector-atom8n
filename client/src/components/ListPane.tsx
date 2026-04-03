@@ -125,13 +125,13 @@ const ListPane = <T extends object>({
                 onClick={() => setSelectedItem(item)}
               >
                 {status === "success" && (
-                  <CheckCircle2 className="w-4 h-4 text-green-500 flex-shrink-0" />
+                  <CheckCircle2 className="w-5 h-5 mr-1 text-green-500 flex-shrink-0" />
                 )}
                 {status === "error" && (
-                  <XCircle className="w-4 h-4 text-red-500 flex-shrink-0" />
+                  <XCircle className="w-5 h-5 mr-1 text-red-500 flex-shrink-0" />
                 )}
                 {status === "running" && (
-                  <Loader2 className="w-4 h-4 text-blue-500 animate-spin flex-shrink-0" />
+                  <Loader2 className="w-5 h-5 mr-1 text-blue-500 animate-spin flex-shrink-0" />
                 )}
                 <div className="flex-1 min-w-0">{renderItem(item)}</div>
               </div>
