@@ -1226,7 +1226,10 @@ const App = () => {
     cacheToolOutputSchemas(response.tools);
   };
 
-  const callTool = async (name: string, params: Record<string, unknown>) => {
+  const callTool = async (
+    name: string,
+    params: Record<string, unknown>,
+  ): Promise<boolean> => {
     lastToolCallOriginTabRef.current = currentTabRef.current;
     console.log(`[App:callTool] Calling tool: ${name}`);
 
@@ -1277,6 +1280,7 @@ const App = () => {
       console.log(`[App:callTool] Tool ${name} completed successfully`);
       // Clear any validation errors since tool execution completed
       setErrors((prev) => ({ ...prev, tools: null }));
+      return !response?.isError;
     } catch (e) {
       const errorMessage = (e as Error).message ?? String(e);
       console.error(`[App:callTool] Tool ${name} failed:`, errorMessage);
@@ -1305,6 +1309,7 @@ const App = () => {
       setToolResult(toolResult);
       // Clear validation errors - tool execution errors are shown in ToolResults
       setErrors((prev) => ({ ...prev, tools: null }));
+      return false;
     }
   };
 
@@ -1718,7 +1723,7 @@ const App = () => {
                         callTool={async (name, params) => {
                           clearError("tools");
                           setToolResult(null);
-                          await callTool(name, params);
+                          return await callTool(name, params);
                         }}
                         selectedTool={selectedTool}
                         setSelectedTool={(tool) => {

@@ -60,7 +60,7 @@ describe("ToolsTab", () => {
     tools: mockTools,
     listTools: jest.fn(),
     clearTools: jest.fn(),
-    callTool: jest.fn(async () => {}),
+    callTool: jest.fn(async () => true),
     selectedTool: null,
     setSelectedTool: jest.fn(),
     toolResult: null,

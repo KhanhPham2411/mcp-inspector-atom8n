@@ -1,4 +1,10 @@
-import { Search, RefreshCw } from "lucide-react";
+import {
+  Search,
+  RefreshCw,
+  CheckCircle2,
+  XCircle,
+  Loader2,
+} from "lucide-react";
 
 import { Input } from "./ui/input";
 import { useState, useMemo, useRef } from "react";
@@ -12,6 +18,8 @@ type ListPaneProps<T> = {
   title: string;
   buttonText: string;
   isButtonDisabled?: boolean;
+  headerActions?: React.ReactNode;
+  itemStatus?: Map<number, "success" | "error" | "running">;
 };
 
 const ListPane = <T extends object>({
@@ -23,6 +31,8 @@ const ListPane = <T extends object>({
   title,
   buttonText,
   isButtonDisabled,
+  headerActions,
+  itemStatus,
 }: ListPaneProps<T>) => {
   const [searchQuery, setSearchQuery] = useState("");
   const [isSearchExpanded, setIsSearchExpanded] = useState(false);
@@ -63,6 +73,7 @@ const ListPane = <T extends object>({
             {title}
           </h3>
           <div className="flex items-center justify-end min-w-0 flex-1 gap-1">
+            {headerActions}
             <button
               name="list"
               aria-label={buttonText}
@@ -104,15 +115,28 @@ const ListPane = <T extends object>({
       </div>
       <div className="p-4">
         <div className="space-y-2 overflow-y-auto max-h-96">
-          {filteredItems.map((item, index) => (
-            <div
-              key={index}
-              className="flex items-center py-2 px-4 rounded hover:bg-gray-50 dark:hover:bg-secondary cursor-pointer"
-              onClick={() => setSelectedItem(item)}
-            >
-              {renderItem(item)}
-            </div>
-          ))}
+          {filteredItems.map((item, index) => {
+            const originalIndex = items.indexOf(item);
+            const status = itemStatus?.get(originalIndex);
+            return (
+              <div
+                key={index}
+                className="flex items-center py-2 px-4 rounded hover:bg-gray-50 dark:hover:bg-secondary cursor-pointer gap-2"
+                onClick={() => setSelectedItem(item)}
+              >
+                {status === "success" && (
+                  <CheckCircle2 className="w-4 h-4 text-green-500 flex-shrink-0" />
+                )}
+                {status === "error" && (
+                  <XCircle className="w-4 h-4 text-red-500 flex-shrink-0" />
+                )}
+                {status === "running" && (
+                  <Loader2 className="w-4 h-4 text-blue-500 animate-spin flex-shrink-0" />
+                )}
+                <div className="flex-1 min-w-0">{renderItem(item)}</div>
+              </div>
+            );
+          })}
           {filteredItems.length === 0 && searchQuery && items.length > 0 && (
             <div className="text-center py-4 text-muted-foreground">
               No items found matching &quot;{searchQuery}&quot;

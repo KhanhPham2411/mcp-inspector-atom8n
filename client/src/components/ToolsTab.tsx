@@ -33,8 +33,9 @@ import {
   Copy,
   CheckCheck,
   Terminal,
+  PlayCircle,
 } from "lucide-react";
-import { useEffect, useState, useRef } from "react";
+import { useEffect, useState, useRef, useCallback } from "react";
 import ListPane from "./ListPane";
 import JsonView from "./JsonView";
 import ToolResults from "./ToolResults";
@@ -66,7 +67,7 @@ const ToolsTab = ({
   tools: Tool[];
   listTools: () => void;
   clearTools: () => void;
-  callTool: (name: string, params: Record<string, unknown>) => Promise<void>;
+  callTool: (name: string, params: Record<string, unknown>) => Promise<boolean>;
   selectedTool: Tool | null;
   setSelectedTool: (tool: Tool | null) => void;
   toolResult: CompatibilityCallToolResult | null;
@@ -86,6 +87,53 @@ const ToolsTab = ({
   const { toast } = useToast();
   const { copied, setCopied } = useCopy();
   const { copied: curlCopied, setCopied: setCurlCopied } = useCopy();
+  const [toolRunStatuses, setToolRunStatuses] = useState<
+    Map<number, "success" | "error" | "running">
+  >(new Map());
+  const [isRunningAll, setIsRunningAll] = useState(false);
+
+  const generateToolDefaultParams = useCallback(
+    (tool: Tool): Record<string, unknown> => {
+      const params = Object.entries(tool.inputSchema.properties ?? []).map(
+        ([key, value]) => [
+          key,
+          generateDefaultValue(
+            value as JsonSchemaType,
+            key,
+            tool.inputSchema as JsonSchemaType,
+          ),
+        ],
+      );
+      return Object.fromEntries(params);
+    },
+    [],
+  );
+
+  const runAllTools = useCallback(async () => {
+    if (isRunningAll || tools.length === 0) return;
+    setIsRunningAll(true);
+    setToolRunStatuses(new Map());
+
+    for (let i = 0; i < tools.length; i++) {
+      const tool = tools[i];
+      const defaultParams = generateToolDefaultParams(tool);
+
+      setToolRunStatuses((prev) => {
+        const next = new Map(prev);
+        next.set(i, "running");
+        return next;
+      });
+
+      const success = await callTool(tool.name, defaultParams);
+      setToolRunStatuses((prev) => {
+        const next = new Map(prev);
+        next.set(i, success ? "success" : "error");
+        return next;
+      });
+    }
+
+    setIsRunningAll(false);
+  }, [isRunningAll, tools, generateToolDefaultParams, callTool]);
 
   // Function to check if any form has validation errors
   const checkValidationErrors = () => {
@@ -247,6 +295,23 @@ const ToolsTab = ({
           title="Tools"
           buttonText={nextCursor ? "List More Tools" : "List Tools"}
           isButtonDisabled={!nextCursor && tools.length > 0}
+          headerActions={
+            <button
+              name="run-all"
+              aria-label="Run All Tools"
+              title="Run All Tools"
+              onClick={runAllTools}
+              disabled={isRunningAll || tools.length === 0}
+              className="p-2 hover:bg-gray-100 dark:hover:bg-secondary rounded-md transition-all duration-300 ease-in-out disabled:opacity-40 disabled:cursor-not-allowed"
+            >
+              {isRunningAll ? (
+                <Loader2 className="w-4 h-4 text-blue-500 animate-spin" />
+              ) : (
+                <PlayCircle className="w-4 h-4 text-muted-foreground" />
+              )}
+            </button>
+          }
+          itemStatus={toolRunStatuses}
         />
 
         <div className="bg-card border border-border rounded-lg shadow">
