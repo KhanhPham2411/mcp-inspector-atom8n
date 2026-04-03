@@ -1960,16 +1960,16 @@ app.post(
       const candidates: string[] = [];
 
       if (platform === "darwin") {
-        candidates.push(`code ${escapedPath}`);
+        candidates.push(`open ${escapedPath}`);
         // open -t opens with the default text editor on macOS
         candidates.push(`open -t ${escapedPath}`);
-        candidates.push(`open ${escapedPath}`);
+        candidates.push(`code ${escapedPath}`);
       } else if (platform === "win32") {
-        candidates.push(`code ${escapedPath}`);
         candidates.push(`start "" ${escapedPath}`);
-      } else {
         candidates.push(`code ${escapedPath}`);
+      } else {
         candidates.push(`xdg-open ${escapedPath}`);
+        candidates.push(`code ${escapedPath}`);
       }
 
       // Try each candidate in order; stop at the first one that succeeds.
