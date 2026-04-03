@@ -1,5 +1,5 @@
-import { Search } from "lucide-react";
-import { Button } from "./ui/button";
+import { Search, RefreshCw } from "lucide-react";
+
 import { Input } from "./ui/input";
 import { useState, useMemo, useRef } from "react";
 
@@ -17,7 +17,7 @@ type ListPaneProps<T> = {
 const ListPane = <T extends object>({
   items,
   listItems,
-  clearItems,
+  clearItems: _clearItems,
   setSelectedItem,
   renderItem,
   title,
@@ -62,7 +62,17 @@ const ListPane = <T extends object>({
           <h3 className="font-semibold dark:text-white flex-shrink-0">
             {title}
           </h3>
-          <div className="flex items-center justify-end min-w-0 flex-1">
+          <div className="flex items-center justify-end min-w-0 flex-1 gap-1">
+            <button
+              name="list"
+              aria-label={buttonText}
+              title={buttonText}
+              onClick={listItems}
+              disabled={isButtonDisabled}
+              className="p-2 hover:bg-gray-100 dark:hover:bg-secondary rounded-md transition-all duration-300 ease-in-out disabled:opacity-40 disabled:cursor-not-allowed"
+            >
+              <RefreshCw className="w-4 h-4 text-muted-foreground" />
+            </button>
             {!isSearchExpanded ? (
               <button
                 name="search"
@@ -93,22 +103,6 @@ const ListPane = <T extends object>({
         </div>
       </div>
       <div className="p-4">
-        <Button
-          variant="outline"
-          className="w-full mb-4"
-          onClick={listItems}
-          disabled={isButtonDisabled}
-        >
-          {buttonText}
-        </Button>
-        <Button
-          variant="outline"
-          className="w-full mb-4"
-          onClick={clearItems}
-          disabled={items.length === 0}
-        >
-          Clear
-        </Button>
         <div className="space-y-2 overflow-y-auto max-h-96">
           {filteredItems.map((item, index) => (
             <div
