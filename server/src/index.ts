@@ -1950,35 +1950,63 @@ app.post(
           ? homeDir
           : rawPath;
 
-      logger.info(`Opening config file: ${expandedPath}`);
+      logger.info(`[open-config-file] Opening file: ${expandedPath}`);
 
+      // Build an ordered list of commands to try.
+      // We prefer a code editor (VS Code), then fall back to the OS default
+      // text editor so that unknown extensions like .n8n still open fine.
       const platform = process.platform;
-      let command: string;
+      const escapedPath = `"${expandedPath}"`;
+      const candidates: string[] = [];
+
       if (platform === "darwin") {
-        command = `open "${expandedPath}"`;
+        candidates.push(`code ${escapedPath}`);
+        // open -t opens with the default text editor on macOS
+        candidates.push(`open -t ${escapedPath}`);
+        candidates.push(`open ${escapedPath}`);
       } else if (platform === "win32") {
-        command = `start "" "${expandedPath}"`;
+        candidates.push(`code ${escapedPath}`);
+        candidates.push(`start "" ${escapedPath}`);
       } else {
-        command = `xdg-open "${expandedPath}"`;
+        candidates.push(`code ${escapedPath}`);
+        candidates.push(`xdg-open ${escapedPath}`);
       }
 
-      exec(command, (error: any, stdout: string, stderr: string) => {
-        if (error) {
-          logger.error(`Error opening config file: ${error.message}`);
+      // Try each candidate in order; stop at the first one that succeeds.
+      const tryNext = (idx: number) => {
+        if (idx >= candidates.length) {
+          logger.error(
+            `[open-config-file] All open methods failed for: ${expandedPath}`,
+          );
           res.status(500).json({
             error: "Internal Server Error",
-            message: error.message,
-            command,
+            message: `Could not open file: ${expandedPath}`,
             file: expandedPath,
           });
           return;
         }
-        res.json({
-          success: true,
-          message: "Config file opened",
-          file: expandedPath,
+
+        const cmd = candidates[idx];
+        logger.info(`[open-config-file] Trying editor: ${cmd}`);
+
+        exec(cmd, (error: any, _stdout: string, _stderr: string) => {
+          if (error) {
+            logger.warn(`[open-config-file] '${cmd}' failed: ${error.message}`);
+            tryNext(idx + 1);
+            return;
+          }
+          logger.info(
+            `[open-config-file] Opened with '${candidates[idx].split(" ")[0]}': ${expandedPath}`,
+          );
+          res.json({
+            success: true,
+            message: "Config file opened",
+            file: expandedPath,
+          });
         });
-      });
+      };
+
+      tryNext(0);
     } catch (error: any) {
       logger.error(
         `Error opening config file (caught): ${error?.message || String(error)}`,
