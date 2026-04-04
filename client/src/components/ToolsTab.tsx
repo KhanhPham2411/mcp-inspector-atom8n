@@ -72,7 +72,10 @@ const ToolsTab = ({
   tools: Tool[];
   listTools: () => void;
   clearTools: () => void;
-  callTool: (name: string, params: Record<string, unknown>) => Promise<boolean>;
+  callTool: (
+    name: string,
+    params: Record<string, unknown>,
+  ) => Promise<{ success: boolean; result: CompatibilityCallToolResult }>;
   selectedTool: Tool | null;
   setSelectedTool: (tool: Tool | null) => void;
   toolResult: CompatibilityCallToolResult | null;
@@ -137,7 +140,7 @@ const ToolsTab = ({
       });
 
       const startTime = performance.now();
-      const success = await callTool(tool.name, defaultParams);
+      const { success, result } = await callTool(tool.name, defaultParams);
       const elapsed = performance.now() - startTime;
       const status = success ? ("success" as const) : ("error" as const);
 
@@ -153,7 +156,7 @@ const ToolsTab = ({
         next.set(i, {
           tool,
           params: defaultParams,
-          result: null, // toolResult state is shared, we'll read it from context
+          result,
           status,
           elapsedTime: elapsed,
         });
@@ -747,7 +750,7 @@ const ToolsTab = ({
                         }
 
                         const startTime = performance.now();
-                        const success = await callTool(
+                        const { success, result } = await callTool(
                           selectedTool.name,
                           params,
                         );
@@ -771,7 +774,7 @@ const ToolsTab = ({
                             next.set(toolIndex, {
                               tool: selectedTool,
                               params: { ...params },
-                              result: null, // will use toolResult from shared state
+                              result,
                               status,
                               elapsedTime: elapsed,
                             });
@@ -888,17 +891,7 @@ const ToolsTab = ({
         onOpenChange={setDialogOpen}
         runData={
           dialogToolIndex !== null
-            ? (() => {
-                const data = toolRunDataMap.get(dialogToolIndex);
-                if (!data) return null;
-                // For the currently selected tool, use the shared toolResult
-                const isCurrentTool =
-                  selectedTool && data.tool.name === selectedTool.name;
-                return {
-                  ...data,
-                  result: isCurrentTool ? toolResult : data.result,
-                };
-              })()
+            ? (toolRunDataMap.get(dialogToolIndex) ?? null)
             : null
         }
         onRunTool={async (tool, runParams) => {
@@ -913,7 +906,7 @@ const ToolsTab = ({
           }
 
           const startTime = performance.now();
-          const success = await callTool(tool.name, runParams);
+          const { success, result } = await callTool(tool.name, runParams);
           const elapsed = performance.now() - startTime;
           const status = success ? ("success" as const) : ("error" as const);
 
@@ -929,7 +922,7 @@ const ToolsTab = ({
               next.set(toolIndex, {
                 tool,
                 params: runParams,
-                result: null,
+                result,
                 status,
                 elapsedTime: elapsed,
               });

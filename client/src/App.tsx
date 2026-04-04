@@ -1229,9 +1229,8 @@ const App = () => {
   const callTool = async (
     name: string,
     params: Record<string, unknown>,
-  ): Promise<boolean> => {
+  ): Promise<{ success: boolean; result: CompatibilityCallToolResult }> => {
     lastToolCallOriginTabRef.current = currentTabRef.current;
-    console.log(`[App:callTool] Calling tool: ${name}`);
 
     try {
       // Find the tool schema to clean parameters properly
@@ -1269,30 +1268,22 @@ const App = () => {
         responseText.toLowerCase().includes("fetch failed") &&
         isCurrentServerN8nWorkflow()
       ) {
-        console.log(
-          "[App:fork] Detected 'fetch failed' error in tool response for n8n workflow server",
-        );
         setForkErrorMessage(responseText);
         setShowForkDialog(true);
       }
 
       setToolResult(response);
-      console.log(`[App:callTool] Tool ${name} completed successfully`);
       // Clear any validation errors since tool execution completed
       setErrors((prev) => ({ ...prev, tools: null }));
-      return !response?.isError;
+      return { success: !response?.isError, result: response };
     } catch (e) {
       const errorMessage = (e as Error).message ?? String(e);
-      console.error(`[App:callTool] Tool ${name} failed:`, errorMessage);
 
       // [FORK] Detect "fetch failed" error from n8n workflow MCP server
       if (
         errorMessage.toLowerCase().includes("fetch failed") &&
         isCurrentServerN8nWorkflow()
       ) {
-        console.log(
-          "[App:fork] Detected 'fetch failed' error for n8n workflow server, showing fork dialog",
-        );
         setForkErrorMessage(errorMessage);
         setShowForkDialog(true);
       }
@@ -1309,7 +1300,7 @@ const App = () => {
       setToolResult(toolResult);
       // Clear validation errors - tool execution errors are shown in ToolResults
       setErrors((prev) => ({ ...prev, tools: null }));
-      return false;
+      return { success: false, result: toolResult };
     }
   };
 
