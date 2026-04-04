@@ -713,14 +713,46 @@ const ToolsTab = ({
                       // Validate JSON inputs before calling tool
                       if (checkValidationErrors()) return;
 
+                      const toolIndex = tools.indexOf(selectedTool);
+
                       try {
                         setIsToolRunning(true);
                         setElapsedTime(null);
+
+                        // Show running status in list
+                        if (toolIndex !== -1) {
+                          setToolRunStatuses((prev) => {
+                            const next = new Map(prev);
+                            next.set(toolIndex, "running");
+                            return next;
+                          });
+                        }
+
                         const startTime = performance.now();
-                        await callTool(selectedTool.name, params);
+                        const success = await callTool(
+                          selectedTool.name,
+                          params,
+                        );
                         setElapsedTime(performance.now() - startTime);
+
+                        // Show success/error status in list
+                        if (toolIndex !== -1) {
+                          setToolRunStatuses((prev) => {
+                            const next = new Map(prev);
+                            next.set(toolIndex, success ? "success" : "error");
+                            return next;
+                          });
+                        }
                       } catch {
                         setElapsedTime(null);
+                        // Show error status in list
+                        if (toolIndex !== -1) {
+                          setToolRunStatuses((prev) => {
+                            const next = new Map(prev);
+                            next.set(toolIndex, "error");
+                            return next;
+                          });
+                        }
                       } finally {
                         setIsToolRunning(false);
                       }
