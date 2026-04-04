@@ -20,6 +20,7 @@ type ListPaneProps<T> = {
   isButtonDisabled?: boolean;
   headerActions?: React.ReactNode;
   itemStatus?: Map<number, "success" | "error" | "running">;
+  onStatusClick?: (originalIndex: number) => void;
 };
 
 const ListPane = <T extends object>({
@@ -33,6 +34,7 @@ const ListPane = <T extends object>({
   isButtonDisabled,
   headerActions,
   itemStatus,
+  onStatusClick,
 }: ListPaneProps<T>) => {
   const [searchQuery, setSearchQuery] = useState("");
   const [isSearchExpanded, setIsSearchExpanded] = useState(false);
@@ -125,10 +127,28 @@ const ListPane = <T extends object>({
                 onClick={() => setSelectedItem(item)}
               >
                 {status === "success" && (
-                  <CheckCircle2 className="w-5 h-5 mr-1 text-green-500 flex-shrink-0" />
+                  <button
+                    className="flex-shrink-0 p-0.5 rounded hover:bg-green-100 dark:hover:bg-green-900/30 transition-colors"
+                    title="View run details"
+                    onClick={(e) => {
+                      e.stopPropagation();
+                      onStatusClick?.(originalIndex);
+                    }}
+                  >
+                    <CheckCircle2 className="w-5 h-5 text-green-500" />
+                  </button>
                 )}
                 {status === "error" && (
-                  <XCircle className="w-5 h-5 mr-1 text-red-500 flex-shrink-0" />
+                  <button
+                    className="flex-shrink-0 p-0.5 rounded hover:bg-red-100 dark:hover:bg-red-900/30 transition-colors"
+                    title="View run details"
+                    onClick={(e) => {
+                      e.stopPropagation();
+                      onStatusClick?.(originalIndex);
+                    }}
+                  >
+                    <XCircle className="w-5 h-5 text-red-500" />
+                  </button>
                 )}
                 {status === "running" && (
                   <Loader2 className="w-5 h-5 mr-1 text-blue-500 animate-spin flex-shrink-0" />

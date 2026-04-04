@@ -42,6 +42,7 @@ import { getMCPProxyAddress, getMCPProxyAuthToken } from "@/utils/configUtils";
 import ListPane from "./ListPane";
 import JsonView from "./JsonView";
 import ToolResults from "./ToolResults";
+import ToolRunDetailDialog, { type ToolRunData } from "./ToolRunDetailDialog";
 import { useToast } from "@/lib/hooks/useToast";
 import useCopy from "@/lib/hooks/useCopy";
 import {
@@ -96,6 +97,11 @@ const ToolsTab = ({
     Map<number, "success" | "error" | "running">
   >(new Map());
   const [isRunningAll, setIsRunningAll] = useState(false);
+  const [toolRunDataMap, setToolRunDataMap] = useState<
+    Map<number, ToolRunData>
+  >(new Map());
+  const [dialogOpen, setDialogOpen] = useState(false);
+  const [dialogToolIndex, setDialogToolIndex] = useState<number | null>(null);
 
   const generateToolDefaultParams = useCallback(
     (tool: Tool): Record<string, unknown> => {
@@ -118,6 +124,7 @@ const ToolsTab = ({
     if (isRunningAll || tools.length === 0) return;
     setIsRunningAll(true);
     setToolRunStatuses(new Map());
+    setToolRunDataMap(new Map());
 
     for (let i = 0; i < tools.length; i++) {
       const tool = tools[i];
@@ -129,10 +136,27 @@ const ToolsTab = ({
         return next;
       });
 
+      const startTime = performance.now();
       const success = await callTool(tool.name, defaultParams);
+      const elapsed = performance.now() - startTime;
+      const status = success ? ("success" as const) : ("error" as const);
+
       setToolRunStatuses((prev) => {
         const next = new Map(prev);
-        next.set(i, success ? "success" : "error");
+        next.set(i, status);
+        return next;
+      });
+
+      // Store run data for the dialog
+      setToolRunDataMap((prev) => {
+        const next = new Map(prev);
+        next.set(i, {
+          tool,
+          params: defaultParams,
+          result: null, // toolResult state is shared, we'll read it from context
+          status,
+          elapsedTime: elapsed,
+        });
         return next;
       });
     }
@@ -252,57 +276,47 @@ const ToolsTab = ({
     [config],
   );
 
-  const generateCurlCommand = () => {
-    if (!selectedTool) return "";
+  const generateCurlForTool = useCallback(
+    (tool: Tool, toolParams: Record<string, unknown>) => {
+      const proxyUrl = "http://localhost:6277";
+      const rawServer = currentServerConfig || { type: "stdio" };
+      const { env: _ignoredEnv, ...server } = rawServer as Record<
+        string,
+        unknown
+      >;
 
-    const proxyUrl = "http://localhost:6277";
-    const rawServer = currentServerConfig || { type: "stdio" };
-    console.log(
-      "[ToolsTab] generateCurlCommand rawServer:",
-      JSON.stringify(rawServer),
-    );
-    const { env: _ignoredEnv, ...server } = rawServer as Record<
-      string,
-      unknown
-    >;
-    console.log(
-      "[ToolsTab] generateCurlCommand server (env stripped):",
-      JSON.stringify(server),
-    );
-
-    // For n8n workflow servers, only include the single relevant .n8n file
-    // instead of all files.  The args pattern is:
-    //   ["exec", "n8n-atom-cli", "mcp", "<file1>.n8n", "<file2>.n8n", ...]
-    const N8N_PREFIX = ["exec", "n8n-atom-cli", "mcp"];
-    const serverArgs = server.args as string[] | undefined;
-    if (
-      Array.isArray(serverArgs) &&
-      serverArgs.length > N8N_PREFIX.length &&
-      serverArgs
-        .slice(0, N8N_PREFIX.length)
-        .every((a, i) => a === N8N_PREFIX[i])
-    ) {
-      const filePaths = serverArgs.slice(N8N_PREFIX.length);
-      const matchedFile = findMatchingN8nFile(filePaths, selectedTool.name);
-      if (matchedFile) {
-        server.args = [...N8N_PREFIX, matchedFile];
-        console.log(
-          "[ToolsTab] generateCurlCommand: n8n workflow detected, using single file:",
-          matchedFile,
-        );
+      // For n8n workflow servers, only include the single relevant .n8n file
+      const N8N_PREFIX = ["exec", "n8n-atom-cli", "mcp"];
+      const serverArgs = server.args as string[] | undefined;
+      if (
+        Array.isArray(serverArgs) &&
+        serverArgs.length > N8N_PREFIX.length &&
+        serverArgs
+          .slice(0, N8N_PREFIX.length)
+          .every((a, i) => a === N8N_PREFIX[i])
+      ) {
+        const filePaths = serverArgs.slice(N8N_PREFIX.length);
+        const matchedFile = findMatchingN8nFile(filePaths, tool.name);
+        if (matchedFile) {
+          server.args = [...N8N_PREFIX, matchedFile];
+        }
       }
-    }
 
-    const curlCommand = `curl -X POST ${proxyUrl}/execute-tool \\
+      return `curl -X POST ${proxyUrl}/execute-tool \\
   -H "Origin: http://localhost:6274" \\
   -H "Content-Type: application/json" \\
   -d '{
-    "toolName": "${selectedTool.name}",
-    "toolArgs": ${JSON.stringify(params, null, 2)},
+    "toolName": "${tool.name}",
+    "toolArgs": ${JSON.stringify(toolParams, null, 2)},
     "server": ${JSON.stringify(server, null, 2)}
   }'`;
+    },
+    [currentServerConfig],
+  );
 
-    return curlCommand;
+  const generateCurlCommand = () => {
+    if (!selectedTool) return "";
+    return generateCurlForTool(selectedTool, params);
   };
 
   const handleCopyCurl = async () => {
@@ -394,6 +408,10 @@ const ToolsTab = ({
             </button>
           }
           itemStatus={toolRunStatuses}
+          onStatusClick={(originalIndex) => {
+            setDialogToolIndex(originalIndex);
+            setDialogOpen(true);
+          }}
         />
 
         <div className="bg-card border border-border rounded-lg shadow">
@@ -733,13 +751,30 @@ const ToolsTab = ({
                           selectedTool.name,
                           params,
                         );
-                        setElapsedTime(performance.now() - startTime);
+                        const elapsed = performance.now() - startTime;
+                        setElapsedTime(elapsed);
+                        const status = success
+                          ? ("success" as const)
+                          : ("error" as const);
 
                         // Show success/error status in list
                         if (toolIndex !== -1) {
                           setToolRunStatuses((prev) => {
                             const next = new Map(prev);
-                            next.set(toolIndex, success ? "success" : "error");
+                            next.set(toolIndex, status);
+                            return next;
+                          });
+
+                          // Store run data for the dialog
+                          setToolRunDataMap((prev) => {
+                            const next = new Map(prev);
+                            next.set(toolIndex, {
+                              tool: selectedTool,
+                              params: { ...params },
+                              result: null, // will use toolResult from shared state
+                              status,
+                              elapsedTime: elapsed,
+                            });
                             return next;
                           });
                         }
@@ -750,6 +785,18 @@ const ToolsTab = ({
                           setToolRunStatuses((prev) => {
                             const next = new Map(prev);
                             next.set(toolIndex, "error");
+                            return next;
+                          });
+
+                          setToolRunDataMap((prev) => {
+                            const next = new Map(prev);
+                            next.set(toolIndex, {
+                              tool: selectedTool,
+                              params: { ...params },
+                              result: null,
+                              status: "error",
+                              elapsedTime: null,
+                            });
                             return next;
                           });
                         }
@@ -836,6 +883,64 @@ const ToolsTab = ({
           </div>
         </div>
       </div>
+      <ToolRunDetailDialog
+        open={dialogOpen}
+        onOpenChange={setDialogOpen}
+        runData={
+          dialogToolIndex !== null
+            ? (() => {
+                const data = toolRunDataMap.get(dialogToolIndex);
+                if (!data) return null;
+                // For the currently selected tool, use the shared toolResult
+                const isCurrentTool =
+                  selectedTool && data.tool.name === selectedTool.name;
+                return {
+                  ...data,
+                  result: isCurrentTool ? toolResult : data.result,
+                };
+              })()
+            : null
+        }
+        onRunTool={async (tool, runParams) => {
+          const toolIndex = tools.indexOf(tool);
+
+          if (toolIndex !== -1) {
+            setToolRunStatuses((prev) => {
+              const next = new Map(prev);
+              next.set(toolIndex, "running");
+              return next;
+            });
+          }
+
+          const startTime = performance.now();
+          const success = await callTool(tool.name, runParams);
+          const elapsed = performance.now() - startTime;
+          const status = success ? ("success" as const) : ("error" as const);
+
+          if (toolIndex !== -1) {
+            setToolRunStatuses((prev) => {
+              const next = new Map(prev);
+              next.set(toolIndex, status);
+              return next;
+            });
+
+            setToolRunDataMap((prev) => {
+              const next = new Map(prev);
+              next.set(toolIndex, {
+                tool,
+                params: runParams,
+                result: null,
+                status,
+                elapsedTime: elapsed,
+              });
+              return next;
+            });
+          }
+        }}
+        generateCurlForTool={generateCurlForTool}
+        resourceContent={resourceContent}
+        onReadResource={onReadResource}
+      />
     </TabsContent>
   );
 };
