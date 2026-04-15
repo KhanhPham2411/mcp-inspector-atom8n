@@ -26,6 +26,7 @@ import express from "express";
 import path from "node:path";
 import os from "node:os";
 import { promises as fs } from "node:fs";
+import TOML from "@iarna/toml";
 import { exec } from "node:child_process";
 import { findActualExecutable } from "spawn-rx";
 import mcpProxy from "./mcpProxy.js";
@@ -1132,18 +1133,25 @@ app.get(
 
       try {
         const fileContent = await fs.readFile(targetPath, "utf8");
+        const isToml = targetPath.endsWith(".toml");
         let parsed: unknown;
         try {
-          parsed = JSON.parse(fileContent);
+          parsed = isToml ? TOML.parse(fileContent) : JSON.parse(fileContent);
         } catch (e) {
           res.status(400).json({
             error: "Bad Request",
-            message: `Invalid JSON in MCP configuration file at ${targetPath}`,
+            message: `Invalid ${isToml ? "TOML" : "JSON"} in MCP configuration file at ${targetPath}`,
           });
           return;
         }
 
-        const obj = parsed as Record<string, unknown>;
+        let obj = parsed as Record<string, unknown>;
+
+        // Codex TOML uses [mcp_servers.<name>] sections – normalise to { mcpServers }
+        if (isToml && obj["mcp_servers"] && !obj["mcpServers"]) {
+          obj = { ...obj, mcpServers: obj["mcp_servers"] };
+        }
+
         const servers = (obj["servers"] || obj["mcpServers"]) as
           | Record<string, unknown>
           | undefined;
@@ -1391,22 +1399,41 @@ app.post(
       console.log("[update-mcp-config] targetPath:", targetPath);
 
       // Create the updated configuration
-      const updatedConfig = {
-        mcpServers: servers,
-      };
+      const isToml = targetPath.endsWith(".toml");
 
       console.log("[update-mcp-config] Writing to:", targetPath);
-      console.log(
-        "[update-mcp-config] Config:",
-        JSON.stringify(updatedConfig, null, 2),
-      );
 
-      // Write the updated configuration to file
-      await fs.writeFile(
-        targetPath,
-        JSON.stringify(updatedConfig, null, 2),
-        "utf8",
-      );
+      if (isToml) {
+        // For TOML files (Codex), read existing config to preserve non-MCP settings
+        let existingConfig: Record<string, unknown> = {};
+        try {
+          const existingContent = await fs.readFile(targetPath, "utf8");
+          existingConfig = TOML.parse(existingContent) as Record<
+            string,
+            unknown
+          >;
+        } catch {
+          // File may not exist yet, start fresh
+        }
+        existingConfig["mcp_servers"] = servers;
+        const tomlContent = TOML.stringify(existingConfig as any);
+        console.log("[update-mcp-config] TOML Config:", tomlContent);
+        await fs.writeFile(targetPath, tomlContent, "utf8");
+      } else {
+        const updatedConfig = {
+          mcpServers: servers,
+        };
+        console.log(
+          "[update-mcp-config] Config:",
+          JSON.stringify(updatedConfig, null, 2),
+        );
+        // Write the updated configuration to file
+        await fs.writeFile(
+          targetPath,
+          JSON.stringify(updatedConfig, null, 2),
+          "utf8",
+        );
+      }
 
       console.log("[update-mcp-config] Write successful");
 

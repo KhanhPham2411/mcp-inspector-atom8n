@@ -1471,6 +1471,24 @@ const App = () => {
                   className="w-5 h-5"
                 />
               </button>
+              <button
+                onClick={() => {
+                  setActiveConfigPath("~/.codex/config.toml");
+                  localStorage.setItem(
+                    "activeConfigPath",
+                    "~/.codex/config.toml",
+                  );
+                  setConfigRefreshKey((k) => k + 1);
+                }}
+                className={`p-1.5 rounded hover:bg-muted transition-colors ${
+                  activeConfigPath === "~/.codex/config.toml"
+                    ? "ring-2 ring-green-500"
+                    : ""
+                }`}
+                title="Codex"
+              >
+                <img src="/codex.png" alt="Codex" className="w-5 h-5" />
+              </button>
             </div>
           )}
 
