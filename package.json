@@ -51,6 +51,7 @@
     "check-version": "node scripts/check-version-consistency.js"
   },
   "dependencies": {
+    "@iarna/toml": "^2.2.5",
     "@modelcontextprotocol/inspector-cli": "^0.17.3",
     "@modelcontextprotocol/inspector-client": "^0.17.3",
     "@modelcontextprotocol/inspector-server": "^0.17.3",
