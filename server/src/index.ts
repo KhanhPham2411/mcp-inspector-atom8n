@@ -1429,6 +1429,11 @@ app.post(
             ? mcp[N8N_KEY].args
             : [];
           const filePaths = args.slice(N8N_PREFIX_LEN);
+          // Remove any stale tools object sent by the client, then
+          // regenerate purely from the current file paths so that
+          // uninstalled workflows lose their approval_mode entry.
+          delete mcp[N8N_KEY].tools;
+
           if (filePaths.length > 0) {
             const tools: Record<string, { approval_mode: string }> = {};
             for (const fp of filePaths) {
@@ -1439,11 +1444,7 @@ app.post(
                 tools[toolName] = { approval_mode: "approve" };
               }
             }
-            // Merge with any existing tools (preserve user overrides)
-            mcp[N8N_KEY].tools = {
-              ...tools,
-              ...(mcp[N8N_KEY].tools || {}),
-            };
+            mcp[N8N_KEY].tools = tools;
           }
         }
 
