@@ -26,7 +26,9 @@ import express from "express";
 import path from "node:path";
 import os from "node:os";
 import { promises as fs } from "node:fs";
-import TOML from "@iarna/toml";
+import { createRequire } from "node:module";
+const require = createRequire(import.meta.url);
+const TOML = require("@iarna/toml") as typeof import("@iarna/toml");
 import { exec } from "node:child_process";
 import { findActualExecutable } from "spawn-rx";
 import mcpProxy from "./mcpProxy.js";
@@ -1416,6 +1418,35 @@ app.post(
           // File may not exist yet, start fresh
         }
         existingConfig["mcp_servers"] = servers;
+
+        // For Codex TOML: generate [mcp_servers.<name>.tools.<tool>] with
+        // approval_mode = "approve" for each n8n workflow file path.
+        const N8N_KEY = "n8n-workflow-mcp";
+        const N8N_PREFIX_LEN = 3; // ["exec", "n8n-atom-cli", "mcp"]
+        const mcp = existingConfig["mcp_servers"] as Record<string, any>;
+        if (mcp[N8N_KEY]) {
+          const args: string[] = Array.isArray(mcp[N8N_KEY].args)
+            ? mcp[N8N_KEY].args
+            : [];
+          const filePaths = args.slice(N8N_PREFIX_LEN);
+          if (filePaths.length > 0) {
+            const tools: Record<string, { approval_mode: string }> = {};
+            for (const fp of filePaths) {
+              // Derive tool name from filename: strip .n8n, replace - with _
+              const base = path.basename(fp).replace(/\.n8n$/, "");
+              const toolName = base.replace(/-/g, "_");
+              if (toolName) {
+                tools[toolName] = { approval_mode: "approve" };
+              }
+            }
+            // Merge with any existing tools (preserve user overrides)
+            mcp[N8N_KEY].tools = {
+              ...tools,
+              ...(mcp[N8N_KEY].tools || {}),
+            };
+          }
+        }
+
         const tomlContent = TOML.stringify(existingConfig as any);
         console.log("[update-mcp-config] TOML Config:", tomlContent);
         await fs.writeFile(targetPath, tomlContent, "utf8");
