@@ -1489,6 +1489,24 @@ const App = () => {
               >
                 <img src="/codex.png" alt="Codex" className="w-5 h-5" />
               </button>
+              <button
+                onClick={() => {
+                  setActiveConfigPath("~/.config/opencode/opencode.json");
+                  localStorage.setItem(
+                    "activeConfigPath",
+                    "~/.config/opencode/opencode.json",
+                  );
+                  setConfigRefreshKey((k) => k + 1);
+                }}
+                className={`p-1.5 rounded hover:bg-muted transition-colors ${
+                  activeConfigPath === "~/.config/opencode/opencode.json"
+                    ? "ring-2 ring-green-500"
+                    : ""
+                }`}
+                title="OpenCode"
+              >
+                <img src="/opencode.svg" alt="OpenCode" className="w-5 h-5" />
+              </button>
             </div>
           )}
 

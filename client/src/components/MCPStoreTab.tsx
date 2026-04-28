@@ -174,6 +174,13 @@ const MCPStoreTab = ({
         icon: "/cursor.svg",
       };
     }
+    if (configFilePath.includes("opencode")) {
+      return {
+        name: "Cursor",
+        configPath: "~/.cursor/mcp.json",
+        icon: "/cursor.svg",
+      };
+    }
     return null;
   }, [configFilePath]);
 
@@ -202,6 +209,13 @@ const MCPStoreTab = ({
         name: "Codex",
         configPath: configFilePath,
         icon: "/codex.png",
+      };
+    }
+    if (configFilePath.includes("opencode")) {
+      return {
+        name: "OpenCode",
+        configPath: configFilePath,
+        icon: "/opencode.svg",
       };
     }
     return null;

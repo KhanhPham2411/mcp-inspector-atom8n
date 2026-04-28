@@ -1136,9 +1136,20 @@ app.get(
       try {
         const fileContent = await fs.readFile(targetPath, "utf8");
         const isToml = targetPath.endsWith(".toml");
+        const isJsonc = targetPath.endsWith(".jsonc");
         let parsed: unknown;
         try {
-          parsed = isToml ? TOML.parse(fileContent) : JSON.parse(fileContent);
+          if (isToml) {
+            parsed = TOML.parse(fileContent);
+          } else {
+            // Strip single-line // comments and trailing commas for JSONC support
+            const cleanedContent = isJsonc
+              ? fileContent
+                  .replace(/^\s*\/\/.*$/gm, "")
+                  .replace(/,\s*([}\]])/g, "$1")
+              : fileContent;
+            parsed = JSON.parse(cleanedContent);
+          }
         } catch (e) {
           res.status(400).json({
             error: "Bad Request",
@@ -1152,6 +1163,30 @@ app.get(
         // Codex TOML uses [mcp_servers.<name>] sections – normalise to { mcpServers }
         if (isToml && obj["mcp_servers"] && !obj["mcpServers"]) {
           obj = { ...obj, mcpServers: obj["mcp_servers"] };
+        }
+
+        // OpenCode uses "mcp" key with a different format:
+        //   { type: "local", command: ["cmd", "arg1", ...], environment: {...} }
+        // Normalise to Cursor-style { command: "cmd", args: [...], env: {...} }
+        if (obj["mcp"] && !obj["mcpServers"] && !obj["servers"]) {
+          const mcpEntries = obj["mcp"] as Record<string, any>;
+          const normalised: Record<string, any> = {};
+          for (const [name, entry] of Object.entries(mcpEntries)) {
+            if (entry && Array.isArray(entry.command)) {
+              // OpenCode format: command is an array
+              const [cmd, ...args] = entry.command as string[];
+              normalised[name] = {
+                command: cmd || "",
+                args,
+                env: entry.environment || {},
+                disabled: entry.enabled === false,
+              };
+            } else {
+              // Already in Cursor-style or unknown format, pass through
+              normalised[name] = entry;
+            }
+          }
+          obj = { ...obj, mcpServers: normalised };
         }
 
         const servers = (obj["servers"] || obj["mcpServers"]) as
@@ -1452,9 +1487,56 @@ app.post(
         console.log("[update-mcp-config] TOML Config:", tomlContent);
         await fs.writeFile(targetPath, tomlContent, "utf8");
       } else {
-        const updatedConfig = {
-          mcpServers: servers,
-        };
+        // OpenCode uses "mcp" key; detect by reading existing file or path pattern
+        const isOpenCode = targetPath.includes("opencode");
+        let updatedConfig: Record<string, unknown>;
+
+        if (isOpenCode) {
+          // Preserve existing OpenCode config structure, only update the "mcp" key
+          let existingConfig: Record<string, unknown> = {};
+          try {
+            const existingContent = await fs.readFile(targetPath, "utf8");
+            const cleanedContent = existingContent
+              .replace(/^\s*\/\/.*$/gm, "")
+              .replace(/,\s*([}\]])/g, "$1");
+            existingConfig = JSON.parse(cleanedContent) as Record<
+              string,
+              unknown
+            >;
+          } catch {
+            // File may not exist yet, start fresh
+          }
+          // Convert Cursor-style servers to OpenCode format:
+          //   { type: "local", command: ["cmd", ...args], environment: {...}, enabled: true }
+          const openCodeServers: Record<string, any> = {};
+          for (const [name, entry] of Object.entries(servers) as [
+            string,
+            any,
+          ][]) {
+            if (entry && typeof entry.command === "string") {
+              const cmdArray = [
+                entry.command,
+                ...(Array.isArray(entry.args) ? entry.args : []),
+              ];
+              openCodeServers[name] = {
+                type: "local",
+                command: cmdArray,
+                enabled: !entry.disabled,
+                ...(entry.env && Object.keys(entry.env).length > 0
+                  ? { environment: entry.env }
+                  : {}),
+              };
+            } else {
+              // Already in OpenCode format or unknown, pass through
+              openCodeServers[name] = entry;
+            }
+          }
+          existingConfig["mcp"] = openCodeServers;
+          updatedConfig = existingConfig;
+        } else {
+          updatedConfig = { mcpServers: servers };
+        }
+
         console.log(
           "[update-mcp-config] Config:",
           JSON.stringify(updatedConfig, null, 2),
