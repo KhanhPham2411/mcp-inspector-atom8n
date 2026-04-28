@@ -93,6 +93,42 @@ function basenamePath(p: string): string {
 const N8N_MCP_KEY = "n8n-workflow-mcp";
 const N8N_MCP_ARGS_PREFIX = ["exec", "n8n-atom-cli", "mcp"];
 
+/** All known MCP configuration file definitions. */
+interface MCPConfigDef {
+  name: string;
+  configPath: string;
+  icon: string;
+  /** Substring to match against configFilePath to identify this config */
+  matchKey: string;
+}
+
+const ALL_MCP_CONFIGS: MCPConfigDef[] = [
+  {
+    name: "Cursor",
+    configPath: "~/.cursor/mcp.json",
+    icon: "/cursor.svg",
+    matchKey: "cursor",
+  },
+  {
+    name: "Antigravity",
+    configPath: "~/.gemini/antigravity/mcp_config.json",
+    icon: "/antigravity.png",
+    matchKey: "antigravity",
+  },
+  {
+    name: "Codex",
+    configPath: "~/.codex/config.toml",
+    icon: "/codex.png",
+    matchKey: "codex",
+  },
+  {
+    name: "OpenCode",
+    configPath: "~/.config/opencode/opencode.json",
+    icon: "/opencode.svg",
+    matchKey: "opencode",
+  },
+];
+
 const MCPStoreTab = ({
   config,
   currentServers = {},
@@ -119,9 +155,24 @@ const MCPStoreTab = ({
   const [showSourceConfig, setShowSourceConfig] = useState(false);
   const [commandPopupServer, setCommandPopupServer] =
     useState<MCPServer | null>(null);
-  const [configSourceEnabled, setConfigSourceEnabled] = useState(() => {
-    const saved = localStorage.getItem("mcpStoreConfigSourceEnabled");
-    return saved !== null ? JSON.parse(saved) : true;
+  // Per-source enabled toggles for config-based sources (keyed by config name)
+  const [configSourcesEnabled, setConfigSourcesEnabled] = useState<
+    Record<string, boolean>
+  >(() => {
+    const saved = localStorage.getItem("mcpStoreConfigSourcesEnabled");
+    if (saved) {
+      try {
+        return JSON.parse(saved);
+      } catch {
+        // fall through
+      }
+    }
+    // Default: all enabled
+    const defaults: Record<string, boolean> = {};
+    for (const cfg of ALL_MCP_CONFIGS) {
+      defaults[cfg.name] = true;
+    }
+    return defaults;
   });
   // Current config file source: enabled toggle
   const [currentConfigSourceEnabled, setCurrentConfigSourceEnabled] = useState(
@@ -145,43 +196,12 @@ const MCPStoreTab = ({
     enabled: true,
   });
 
-  // Compute the dynamic config-based source:
-  // When on Cursor, offer Antigravity as source; when on Antigravity, offer Cursor.
-  const configBasedSource = useMemo<{
-    name: string;
-    configPath: string;
-    icon: string;
-  } | null>(() => {
-    if (!configFilePath) return null;
-    if (configFilePath.includes("cursor")) {
-      return {
-        name: "Antigravity",
-        configPath: "~/.gemini/antigravity/mcp_config.json",
-        icon: "/antigravity.png",
-      };
-    }
-    if (configFilePath.includes("antigravity")) {
-      return {
-        name: "Cursor",
-        configPath: "~/.cursor/mcp.json",
-        icon: "/cursor.svg",
-      };
-    }
-    if (configFilePath.includes("codex")) {
-      return {
-        name: "Cursor",
-        configPath: "~/.cursor/mcp.json",
-        icon: "/cursor.svg",
-      };
-    }
-    if (configFilePath.includes("opencode")) {
-      return {
-        name: "Cursor",
-        configPath: "~/.cursor/mcp.json",
-        icon: "/cursor.svg",
-      };
-    }
-    return null;
+  // Compute ALL config-based sources (excluding the currently active config file).
+  const configBasedSources = useMemo<MCPConfigDef[]>(() => {
+    if (!configFilePath) return ALL_MCP_CONFIGS;
+    return ALL_MCP_CONFIGS.filter(
+      (cfg) => !configFilePath.includes(cfg.matchKey),
+    );
   }, [configFilePath]);
 
   const currentSource = useMemo<{
@@ -239,13 +259,13 @@ const MCPStoreTab = ({
     localStorage.setItem("mcpStoreSources", JSON.stringify(sources));
   }, [sources, config]);
 
-  // Save configSourceEnabled to localStorage whenever it changes
+  // Save configSourcesEnabled to localStorage whenever it changes
   useEffect(() => {
     localStorage.setItem(
-      "mcpStoreConfigSourceEnabled",
-      JSON.stringify(configSourceEnabled),
+      "mcpStoreConfigSourcesEnabled",
+      JSON.stringify(configSourcesEnabled),
     );
-  }, [configSourceEnabled]);
+  }, [configSourcesEnabled]);
 
   // Save currentConfigSourceEnabled to localStorage whenever it changes
   useEffect(() => {
@@ -387,12 +407,13 @@ const MCPStoreTab = ({
         }
       }
 
-      // Fetch servers from the cross-config source (Cursor ↔ Antigravity)
-      if (configBasedSource && configSourceEnabled) {
+      // Fetch servers from all enabled cross-config sources
+      for (const cfgSource of configBasedSources) {
+        if (!configSourcesEnabled[cfgSource.name]) continue;
         try {
           const baseUrl = getMCPProxyAddress(config);
           const { token, header } = getMCPProxyAuthToken(config);
-          const url = `${baseUrl}/mcp-config?path=${encodeURIComponent(configBasedSource.configPath)}`;
+          const url = `${baseUrl}/mcp-config?path=${encodeURIComponent(cfgSource.configPath)}`;
           const response = await fetch(url, {
             method: "GET",
             headers: {
@@ -404,15 +425,12 @@ const MCPStoreTab = ({
             const data = await response.json();
             const configServers = parseConfigServers(
               data.config,
-              configBasedSource.name,
+              cfgSource.name,
             );
             allServers.push(...configServers);
           }
         } catch (error) {
-          console.error(
-            `Error fetching from ${configBasedSource.name} config:`,
-            error,
-          );
+          console.error(`Error fetching from ${cfgSource.name} config:`, error);
         }
       }
 
@@ -493,8 +511,8 @@ const MCPStoreTab = ({
     configFilePath,
     currentSource,
     currentConfigSourceEnabled,
-    configBasedSource,
-    configSourceEnabled,
+    configBasedSources,
+    configSourcesEnabled,
     n8nSourceEnabled,
   ]);
 
@@ -1347,9 +1365,9 @@ const MCPStoreTab = ({
       }
       groups[sourceName].push(server);
     }
-    // Sort: n8n workflows first, then cross-config source, then the rest, current config last
+    // Sort: n8n workflows first, then cross-config sources, then the rest, current config last
     const currentName = currentSource?.name;
-    const configName = configBasedSource?.name;
+    const configNames = new Set(configBasedSources.map((s) => s.name));
     const entries = Object.entries(groups);
     entries.sort(([a], [b]) => {
       // Current config source last
@@ -1357,12 +1375,15 @@ const MCPStoreTab = ({
       if (currentName && b === currentName) return -1;
       if (a === "Workspace") return -1;
       if (b === "Workspace") return 1;
-      if (configName && a === configName) return -1;
-      if (configName && b === configName) return 1;
+      // Config-based sources come before other non-workspace sources
+      const aIsConfig = configNames.has(a);
+      const bIsConfig = configNames.has(b);
+      if (aIsConfig && !bIsConfig) return -1;
+      if (!aIsConfig && bIsConfig) return 1;
       return 0;
     });
     return Object.fromEntries(entries);
-  }, [filteredServers, currentSource, configBasedSource]);
+  }, [filteredServers, currentSource, configBasedSources]);
 
   const toggleGroup = (groupName: string) => {
     setCollapsedGroups((prev) => {
@@ -1545,9 +1566,11 @@ const MCPStoreTab = ({
                       <span className="group-header-label">Open File</span>
                     </Button>
                   )}
-                  {configBasedSource &&
-                    sourceName === configBasedSource.name && (
+                  {configBasedSources
+                    .filter((cbs) => cbs.name === sourceName)
+                    .map((cbs) => (
                       <Button
+                        key={cbs.name}
                         variant="outline"
                         size="sm"
                         className="h-7 text-xs"
@@ -1557,7 +1580,7 @@ const MCPStoreTab = ({
                             const { token, header } =
                               getMCPProxyAuthToken(config);
                             await fetch(
-                              `${baseUrl}/open-config-file?path=${encodeURIComponent(configBasedSource.configPath)}`,
+                              `${baseUrl}/open-config-file?path=${encodeURIComponent(cbs.configPath)}`,
                               {
                                 method: "POST",
                                 headers: {
@@ -1574,7 +1597,7 @@ const MCPStoreTab = ({
                         <FolderOpen className="w-3 h-3 shrink-0" />
                         <span className="group-header-label">Open File</span>
                       </Button>
-                    )}
+                    ))}
                   {sourceUrl && (
                     <a
                       href={sourceUrl}
@@ -1898,62 +1921,69 @@ const MCPStoreTab = ({
               </div>
             )}
 
-            {/* Config-based Source (read-only) */}
-            {configBasedSource && (
+            {/* Config-based Sources (all known MCP files except current) */}
+            {configBasedSources.length > 0 && (
               <div>
                 <Label className="text-sm font-medium mb-2 block">
-                  MCP JSON File Source
+                  MCP JSON File Sources
                 </Label>
                 <div className="space-y-2">
-                  <div className="flex items-start gap-3 p-4 border rounded-lg bg-muted/30">
-                    <div className="flex-shrink-0 pt-1">
-                      <Switch
-                        checked={configSourceEnabled}
-                        onCheckedChange={setConfigSourceEnabled}
-                      />
-                    </div>
-                    <div className="flex-1 min-w-0">
-                      <button
-                        className="font-medium mb-1 inline-flex items-center gap-1.5 text-primary hover:underline cursor-pointer"
-                        onClick={async () => {
-                          try {
-                            const baseUrl = getMCPProxyAddress(config);
-                            const { token, header } =
-                              getMCPProxyAuthToken(config);
-                            await fetch(
-                              `${baseUrl}/open-config-file?path=${encodeURIComponent(configBasedSource.configPath)}`,
-                              {
-                                method: "POST",
-                                headers: {
-                                  "Content-Type": "application/json",
-                                  [header]: token ? `Bearer ${token}` : "",
-                                },
-                              },
-                            );
-                          } catch (err) {
-                            console.error("Failed to open config file:", err);
+                  {configBasedSources.map((cfgSrc) => (
+                    <div
+                      key={cfgSrc.name}
+                      className="flex items-start gap-3 p-4 border rounded-lg bg-muted/30"
+                    >
+                      <div className="flex-shrink-0 pt-1">
+                        <Switch
+                          checked={configSourcesEnabled[cfgSrc.name] ?? true}
+                          onCheckedChange={(checked) =>
+                            setConfigSourcesEnabled((prev) => ({
+                              ...prev,
+                              [cfgSrc.name]: checked,
+                            }))
                           }
-                        }}
-                      >
-                        <img
-                          src={configBasedSource.icon}
-                          alt={configBasedSource.name}
-                          className="w-4 h-4"
                         />
-                        {configBasedSource.name}
-                        <GotoIcon
-                          className="w-3.5 h-3.5 shrink-0 opacity-80"
-                          aria-hidden
-                        />
-                      </button>
-                      <div className="text-sm text-muted-foreground break-all">
-                        {configBasedSource.configPath}
                       </div>
-                      <div className="text-xs text-muted-foreground mt-1">
-                        Auto-detected from active config file
+                      <div className="flex-1 min-w-0">
+                        <button
+                          className="font-medium mb-1 inline-flex items-center gap-1.5 text-primary hover:underline cursor-pointer"
+                          onClick={async () => {
+                            try {
+                              const baseUrl = getMCPProxyAddress(config);
+                              const { token, header } =
+                                getMCPProxyAuthToken(config);
+                              await fetch(
+                                `${baseUrl}/open-config-file?path=${encodeURIComponent(cfgSrc.configPath)}`,
+                                {
+                                  method: "POST",
+                                  headers: {
+                                    "Content-Type": "application/json",
+                                    [header]: token ? `Bearer ${token}` : "",
+                                  },
+                                },
+                              );
+                            } catch (err) {
+                              console.error("Failed to open config file:", err);
+                            }
+                          }}
+                        >
+                          <img
+                            src={cfgSrc.icon}
+                            alt={cfgSrc.name}
+                            className="w-4 h-4"
+                          />
+                          {cfgSrc.name}
+                          <GotoIcon
+                            className="w-3.5 h-3.5 shrink-0 opacity-80"
+                            aria-hidden
+                          />
+                        </button>
+                        <div className="text-sm text-muted-foreground break-all">
+                          {cfgSrc.configPath}
+                        </div>
                       </div>
                     </div>
-                  </div>
+                  ))}
                 </div>
               </div>
             )}
