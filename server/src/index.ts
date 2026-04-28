@@ -1202,6 +1202,36 @@ app.get(
         });
       } catch (readErr: any) {
         if (readErr?.code === "ENOENT") {
+          // Auto-create OpenCode config file if it doesn't exist
+          if (targetPath.includes("opencode")) {
+            try {
+              const dir = path.dirname(targetPath);
+              await fs.mkdir(dir, { recursive: true });
+              const defaultConfig = {
+                $schema: "https://opencode.ai/config.json",
+                mcp: {},
+              };
+              await fs.writeFile(
+                targetPath,
+                JSON.stringify(defaultConfig, null, 2),
+                "utf8",
+              );
+              console.log(
+                `[mcp-config] Auto-created OpenCode config at ${targetPath}`,
+              );
+              res.json({
+                path: targetPath,
+                config: { ...defaultConfig, mcpServers: {} },
+                serverCount: 0,
+              });
+              return;
+            } catch (createErr) {
+              console.error(
+                "[mcp-config] Failed to auto-create OpenCode config:",
+                createErr,
+              );
+            }
+          }
           res.status(404).json({
             error: "Not Found",
             message: `MCP configuration file not found at ${targetPath}`,
