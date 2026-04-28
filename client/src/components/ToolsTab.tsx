@@ -67,6 +67,7 @@ const ToolsTab = ({
   resourceContent,
   onReadResource,
   currentServerConfig,
+  loadedServers,
   config,
 }: {
   tools: Tool[];
@@ -84,6 +85,7 @@ const ToolsTab = ({
   resourceContent: Record<string, string>;
   onReadResource?: (uri: string) => void;
   currentServerConfig?: Record<string, unknown>;
+  loadedServers?: Record<string, any>;
   config?: InspectorConfig;
 }) => {
   const [params, setParams] = useState<Record<string, unknown>>({});
@@ -226,11 +228,31 @@ const ToolsTab = ({
   const serverArgs = (
     currentServerConfig as Record<string, unknown> | undefined
   )?.args as string[] | undefined;
-  const isN8nServer =
+  let isN8nServer =
     Array.isArray(serverArgs) &&
     serverArgs.length > N8N_PREFIX.length &&
     serverArgs.slice(0, N8N_PREFIX.length).every((a, i) => a === N8N_PREFIX[i]);
-  const n8nFilePaths = isN8nServer ? serverArgs!.slice(N8N_PREFIX.length) : [];
+  let n8nFilePaths = isN8nServer ? serverArgs!.slice(N8N_PREFIX.length) : [];
+
+  // Fallback: if currentServerConfig doesn't have n8n args (e.g. in VSCode
+  // extension iframe with separate localStorage), check the loaded config
+  // file servers for any server with the n8n arg pattern.
+  if (!isN8nServer && loadedServers) {
+    for (const serverConfig of Object.values(loadedServers)) {
+      const sArgs = serverConfig?.args as string[] | undefined;
+      if (
+        Array.isArray(sArgs) &&
+        sArgs.length > N8N_PREFIX.length &&
+        sArgs
+          .slice(0, N8N_PREFIX.length)
+          .every((a: string, i: number) => a === N8N_PREFIX[i])
+      ) {
+        isN8nServer = true;
+        n8nFilePaths = sArgs.slice(N8N_PREFIX.length);
+        break;
+      }
+    }
+  }
 
   /**
    * Open the matching .n8n file for a given tool.

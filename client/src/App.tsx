@@ -1767,6 +1767,7 @@ const App = () => {
                           readResource(uri);
                         }}
                         currentServerConfig={serverConfigForCurl}
+                        loadedServers={currentServers}
                         config={config}
                       />
                       <ConsoleTab />
