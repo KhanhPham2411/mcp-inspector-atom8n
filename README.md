@@ -7,7 +7,9 @@ First MCP Inspector client support n8n:
 # MCP Inspector
 
 The MCP inspector is a developer tool for testing and debugging MCP servers.
-
+```bash
+npm exec -y @atom8n/inspector@latest
+```
 ![MCP Inspector Screenshot](https://raw.githubusercontent.com/modelcontextprotocol/inspector/main/mcp-inspector.png)
 
 ## Architecture Overview
