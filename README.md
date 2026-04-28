@@ -2,14 +2,15 @@ First MCP Inspector client support n8n:
 - Website: <a href="https://atom8n.com/" target="_blank">www.atom8n.com</a>
 - Download the client extension: <a href="https://open-vsx.org/extension/atom8n/mcp-inspector-atom" target="_blank">MCP Inspector Atom</a>
 - Join Our Community: <a href="https://discord.gg/9MmAhtJFWW" target="_blank">Discord</a>, <a href="https://web.facebook.com/groups/atom8n" target="_blank">Facebook</a>
+```bash
+npm exec -y @atom8n/inspector@latest
+```
 <img alt="image" src="https://github.com/user-attachments/assets/f757149f-6e67-4543-aae4-35801f7bff69" />
 
 # MCP Inspector
 
 The MCP inspector is a developer tool for testing and debugging MCP servers.
-```bash
-npm exec -y @atom8n/inspector@latest
-```
+
 ![MCP Inspector Screenshot](https://raw.githubusercontent.com/modelcontextprotocol/inspector/main/mcp-inspector.png)
 
 ## Architecture Overview
